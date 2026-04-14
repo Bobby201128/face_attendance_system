@@ -109,6 +109,25 @@ def start_pc_app(face_engine, camera_manager):
     window.camera = camera_manager
     window._load_faces()
 
+    # 显示环境选择对话框（如果有多于一个环境）
+    try:
+        from database import db
+        environments = db.get_all_environments(include_inactive=False)
+        if len(environments) > 1 or (len(environments) == 1 and not environments[0].get('default_env')):
+            # 有多个环境或没有默认环境时，显示选择对话框
+            selected_env = window.show_environment_selection_dialog()
+            if not selected_env:
+                # 用户没有选择环境，使用默认或第一个环境
+                default_env = db.get_active_environment()
+                if default_env:
+                    window._apply_environment_settings(default_env)
+        else:
+            # 只有一个默认环境，自动应用
+            if environments:
+                window._apply_environment_settings(environments[0])
+    except Exception as e:
+        logger.warning(f"环境选择失败，使用默认设置: {e}")
+
     window.show()
 
     sys.exit(app.exec_())

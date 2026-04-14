@@ -30,6 +30,10 @@ import config
 from database import db
 from face_engine import FaceEngine, CameraManager
 from video_threads import VideoThread, RecognitionThread
+from pc_app_extensions import (
+    EnvironmentDialog, FaceApprovalDialog, PersonEnvironmentDialog,
+    PCUIExtensions, create_extension_menu
+)
 
 logger = logging.getLogger(__name__)
 
@@ -430,6 +434,19 @@ class MainWindow(QMainWindow):
         self.btn_fullscreen.clicked.connect(self._toggle_fullscreen)
         control_bar.addWidget(self.btn_fullscreen)
 
+        # 扩展功能按钮
+        self.btn_face_approval = QPushButton("👤 人脸审核")
+        self.btn_face_approval.setMinimumHeight(45)
+        self.btn_face_approval.setToolTip("审核待批准的人脸照片")
+        self.btn_face_approval.clicked.connect(self._show_face_approval_dialog)
+        control_bar.addWidget(self.btn_face_approval)
+
+        self.btn_person_env = QPushButton("🏢 人员环境")
+        self.btn_person_env.setMinimumHeight(45)
+        self.btn_person_env.setToolTip("管理人员环境关联")
+        self.btn_person_env.clicked.connect(self._show_person_environment_dialog)
+        control_bar.addWidget(self.btn_person_env)
+
         left_layout.addLayout(control_bar)
 
         # ===== 右侧: 数据面板 =====
@@ -811,6 +828,54 @@ class MainWindow(QMainWindow):
             self.showNormal()
         else:
             self.showFullScreen()
+
+    # ==================== 扩展功能 ====================
+
+    def _show_face_approval_dialog(self):
+        """显示人脸审核对话框"""
+        try:
+            dialog = FaceApprovalDialog(self)
+            dialog.exec_()
+        except Exception as e:
+            logger.error(f"显示人脸审核对话框失败: {e}")
+            QMessageBox.critical(self, "错误", f"打开人脸审核失败: {str(e)}")
+
+    def _show_person_environment_dialog(self):
+        """显示人员环境关联对话框"""
+        try:
+            dialog = PersonEnvironmentDialog(self)
+            dialog.exec_()
+        except Exception as e:
+            logger.error(f"显示人员环境对话框失败: {e}")
+            QMessageBox.critical(self, "错误", f"打开人员环境管理失败: {str(e)}")
+
+    def show_environment_selection_dialog(self):
+        """显示环境选择对话框（启动时调用）"""
+        try:
+            dialog = EnvironmentDialog(self)
+            result = dialog.exec_()
+            if result == QDialog.Accepted:
+                env = dialog.get_selected_environment()
+                if env:
+                    self._apply_environment_settings(env)
+                    return env
+        except Exception as e:
+            logger.error(f"显示环境选择对话框失败: {e}")
+        return None
+
+    def _apply_environment_settings(self, env):
+        """应用环境设置"""
+        try:
+            # 应用环境的签到规则
+            if self.face_engine:
+                self.face_engine.set_threshold(env.get('recognition_threshold', 0.55))
+                self.face_engine.set_cooldown(env.get('sign_cooldown_seconds', 60))
+                self.face_engine.set_confirm_frames(env.get('confirm_frames', 3))
+
+            logger.info(f"已应用环境设置: {env['name']}")
+            QMessageBox.information(self, "环境设置", f"已切换到环境: {env['name']}")
+        except Exception as e:
+            logger.error(f"应用环境设置失败: {e}")
 
     # ==================== 数据刷新 ====================
 

@@ -9,7 +9,9 @@
       "Bash(python -m py_compile database.py)",
       "Bash(python test_database_upgrade.py)",
       "Bash(python integrate_mobile_ui.py)",
-      "Bash(python integrate_ui_fixed.py)"
+      "Bash(python integrate_ui_fixed.py)",
+      "Bash(git commit -m 'docs: 添加系统优化实施进度报告:*)",
+      "Bash(python comprehensive_test.py)"
     ]
   }
 }
