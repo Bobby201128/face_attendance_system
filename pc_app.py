@@ -42,10 +42,10 @@ logger = logging.getLogger(__name__)
 
 DARK_STYLE = """
 QMainWindow {
-    background-color: #1a1a2e;
+    background-color: #1a1a1a;
 }
 QWidget {
-    background-color: #1a1a2e;
+    background-color: #1a1a1a;
     color: #e0e0e0;
     font-family: "Microsoft YaHei", "SimHei", sans-serif;
 }
@@ -56,85 +56,86 @@ QLabel {
 QLabel#titleLabel {
     font-size: 24px;
     font-weight: bold;
-    color: #00d4ff;
+    color: #ffffff;
 }
 QLabel#statValue {
     font-size: 36px;
     font-weight: bold;
-    color: #00d4ff;
+    color: #ffffff;
 }
 QLabel#statLabel {
     font-size: 13px;
-    color: #a0a0a0;
+    color: #808080;
 }
 QLabel#timeLabel {
     font-size: 48px;
     font-weight: bold;
-    color: #00d4ff;
+    color: #ffffff;
 }
 QLabel#dateLabel {
     font-size: 18px;
-    color: #a0a0a0;
+    color: #808080;
 }
 QLabel#signName {
     font-size: 28px;
     font-weight: bold;
-    color: #00ff88;
+    color: #4CAF50;
 }
 QLabel#signInfo {
     font-size: 16px;
-    color: #a0a0a0;
+    color: #808080;
 }
 QPushButton {
-    background-color: #16213e;
+    background-color: #2a2a2a;
     color: #e0e0e0;
-    border: 1px solid #0f3460;
-    border-radius: 6px;
+    border: 1px solid #404040;
+    border-radius: 4px;
     padding: 8px 16px;
     font-size: 14px;
     min-height: 20px;
 }
 QPushButton:hover {
-    background-color: #0f3460;
-    border-color: #00d4ff;
+    background-color: #404040;
+    border-color: #606060;
 }
 QPushButton:pressed {
-    background-color: #00d4ff;
-    color: #1a1a2e;
+    background-color: #606060;
+    color: #ffffff;
 }
 QPushButton#primaryBtn {
-    background-color: #0f3460;
-    border-color: #00d4ff;
+    background-color: #404040;
+    border-color: #606060;
     font-weight: bold;
 }
 QPushButton#primaryBtn:hover {
-    background-color: #00d4ff;
-    color: #1a1a2e;
+    background-color: #606060;
+    color: #ffffff;
 }
 QPushButton#dangerBtn {
-    background-color: #3a0a0a;
-    border-color: #ff4444;
+    background-color: #2a2a2a;
+    border-color: #808080;
+    color: #808080;
 }
 QPushButton#dangerBtn:hover {
-    background-color: #ff4444;
-    color: white;
+    background-color: #404040;
+    color: #e0e0e0;
 }
 QPushButton#successBtn {
-    background-color: #0a3a0a;
-    border-color: #00ff88;
+    background-color: #2a2a2a;
+    border-color: #606060;
 }
 QPushButton#successBtn:hover {
-    background-color: #00ff88;
-    color: #1a1a2e;
+    background-color: #404040;
+    color: #ffffff;
 }
 QGroupBox {
-    border: 1px solid #0f3460;
-    border-radius: 8px;
+    border: 1px solid #404040;
+    border-radius: 4px;
     margin-top: 12px;
     padding-top: 16px;
     font-weight: bold;
     font-size: 15px;
-    color: #00d4ff;
+    color: #e0e0e0;
 }
 QGroupBox::title {
     subcontrol-origin: margin;
@@ -142,40 +143,41 @@ QGroupBox::title {
     padding: 0 8px;
 }
 QTableWidget {
-    background-color: #16213e;
-    border: 1px solid #0f3460;
-    border-radius: 6px;
-    gridline-color: #0f3460;
+    background-color: #2a2a2a;
+    border: 1px solid #404040;
+    border-radius: 4px;
+    gridline-color: #404040;
     font-size: 13px;
 }
 QTableWidget::item {
     padding: 6px;
-    border-bottom: 1px solid #0f3460;
+    border-bottom: 1px solid #404040;
 }
 QTableWidget::item:selected {
-    background-color: #0f3460;
+    background-color: #404040;
 }
 QHeaderView::section {
-    background-color: #0f3460;
-    color: #00d4ff;
+    background-color: #2a2a2a;
+    color: #e0e0e0;
     padding: 8px;
     border: none;
+    border-bottom: 1px solid #404040;
     font-weight: bold;
     font-size: 13px;
 }
 QTabWidget::pane {
-    border: 1px solid #0f3460;
-    border-radius: 6px;
-    background-color: #1a1a2e;
+    border: 1px solid #404040;
+    border-radius: 4px;
+    background-color: #1a1a1a;
 }
 QTabBar::tab {
-    background-color: #16213e;
-    color: #a0a0a0;
+    background-color: #2a2a2a;
+    color: #808080;
     padding: 10px 20px;
-    border: 1px solid #0f3460;
+    border: 1px solid #404040;
     border-bottom: none;
-    border-top-left-radius: 6px;
-    border-top-right-radius: 6px;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
     font-size: 14px;
 }
 QTabBar::tab:selected {
@@ -417,7 +419,7 @@ class MainWindow(QMainWindow):
         self.btn_start.clicked.connect(self._toggle_camera)
         control_bar.addWidget(self.btn_start)
 
-        self.btn_mode = QPushButton("模式: 自动签到")
+        self.btn_mode = QPushButton("自动签到")
         self.btn_mode.setMinimumHeight(45)
         self.btn_mode.clicked.connect(self._toggle_mode)
         control_bar.addWidget(self.btn_mode)
@@ -433,19 +435,6 @@ class MainWindow(QMainWindow):
         self.btn_fullscreen.setMinimumHeight(45)
         self.btn_fullscreen.clicked.connect(self._toggle_fullscreen)
         control_bar.addWidget(self.btn_fullscreen)
-
-        # 扩展功能按钮
-        self.btn_face_approval = QPushButton("👤 人脸审核")
-        self.btn_face_approval.setMinimumHeight(45)
-        self.btn_face_approval.setToolTip("审核待批准的人脸照片")
-        self.btn_face_approval.clicked.connect(self._show_face_approval_dialog)
-        control_bar.addWidget(self.btn_face_approval)
-
-        self.btn_person_env = QPushButton("🏢 人员环境")
-        self.btn_person_env.setMinimumHeight(45)
-        self.btn_person_env.setToolTip("管理人员环境关联")
-        self.btn_person_env.clicked.connect(self._show_person_environment_dialog)
-        control_bar.addWidget(self.btn_person_env)
 
         left_layout.addLayout(control_bar)
 
@@ -828,54 +817,6 @@ class MainWindow(QMainWindow):
             self.showNormal()
         else:
             self.showFullScreen()
-
-    # ==================== 扩展功能 ====================
-
-    def _show_face_approval_dialog(self):
-        """显示人脸审核对话框"""
-        try:
-            dialog = FaceApprovalDialog(self)
-            dialog.exec_()
-        except Exception as e:
-            logger.error(f"显示人脸审核对话框失败: {e}")
-            QMessageBox.critical(self, "错误", f"打开人脸审核失败: {str(e)}")
-
-    def _show_person_environment_dialog(self):
-        """显示人员环境关联对话框"""
-        try:
-            dialog = PersonEnvironmentDialog(self)
-            dialog.exec_()
-        except Exception as e:
-            logger.error(f"显示人员环境对话框失败: {e}")
-            QMessageBox.critical(self, "错误", f"打开人员环境管理失败: {str(e)}")
-
-    def show_environment_selection_dialog(self):
-        """显示环境选择对话框（启动时调用）"""
-        try:
-            dialog = EnvironmentDialog(self)
-            result = dialog.exec_()
-            if result == QDialog.Accepted:
-                env = dialog.get_selected_environment()
-                if env:
-                    self._apply_environment_settings(env)
-                    return env
-        except Exception as e:
-            logger.error(f"显示环境选择对话框失败: {e}")
-        return None
-
-    def _apply_environment_settings(self, env):
-        """应用环境设置"""
-        try:
-            # 应用环境的签到规则
-            if self.face_engine:
-                self.face_engine.set_threshold(env.get('recognition_threshold', 0.55))
-                self.face_engine.set_cooldown(env.get('sign_cooldown_seconds', 60))
-                self.face_engine.set_confirm_frames(env.get('confirm_frames', 3))
-
-            logger.info(f"已应用环境设置: {env['name']}")
-            QMessageBox.information(self, "环境设置", f"已切换到环境: {env['name']}")
-        except Exception as e:
-            logger.error(f"应用环境设置失败: {e}")
 
     # ==================== 数据刷新 ====================
 

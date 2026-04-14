@@ -11,7 +11,9 @@
       "Bash(python integrate_mobile_ui.py)",
       "Bash(python integrate_ui_fixed.py)",
       "Bash(git commit -m 'docs: 添加系统优化实施进度报告:*)",
-      "Bash(python comprehensive_test.py)"
+      "Bash(python comprehensive_test.py)",
+      "Bash(git commit -m 'docs: 添加项目最终完成报告:*)",
+      "Bash(python -m py_compile pc_app.py pc_app_extensions.py main.py api_server.py)"
     ]
   }
 }

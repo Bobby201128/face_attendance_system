@@ -80,26 +80,27 @@ def start_api_server_thread(face_engine=None, camera_manager=None):
 
 def start_pc_app(face_engine, camera_manager):
     """启动PC端PyQt5应用"""
-    from PyQt5.QtWidgets import QApplication
+    from PyQt5.QtWidgets import QApplication, QDialog
     from PyQt5.QtGui import QPalette, QColor
     from pc_app import MainWindow
+    from pc_app_extensions import EnvironmentDialog
 
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
 
-    # 暗色主题
+    # 暗色主题（黑灰白）
     palette = QPalette()
-    palette.setColor(QPalette.Window, QColor(26, 26, 46))
+    palette.setColor(QPalette.Window, QColor(26, 26, 26))
     palette.setColor(QPalette.WindowText, QColor(224, 224, 224))
-    palette.setColor(QPalette.Base, QColor(22, 33, 62))
-    palette.setColor(QPalette.AlternateBase, QColor(26, 26, 46))
+    palette.setColor(QPalette.Base, QColor(42, 42, 42))
+    palette.setColor(QPalette.AlternateBase, QColor(26, 26, 26))
     palette.setColor(QPalette.ToolTipBase, QColor(224, 224, 224))
     palette.setColor(QPalette.ToolTipText, QColor(224, 224, 224))
     palette.setColor(QPalette.Text, QColor(224, 224, 224))
-    palette.setColor(QPalette.Button, QColor(22, 33, 62))
+    palette.setColor(QPalette.Button, QColor(42, 42, 42))
     palette.setColor(QPalette.ButtonText, QColor(224, 224, 224))
-    palette.setColor(QPalette.Highlight, QColor(15, 52, 96))
-    palette.setColor(QPalette.HighlightedText, QColor(0, 212, 255))
+    palette.setColor(QPalette.Highlight, QColor(64, 64, 64))
+    palette.setColor(QPalette.HighlightedText, QColor(255, 255, 255))
     app.setPalette(palette)
 
     window = MainWindow()
@@ -109,22 +110,22 @@ def start_pc_app(face_engine, camera_manager):
     window.camera = camera_manager
     window._load_faces()
 
-    # 显示环境选择对话框（如果有多于一个环境）
+    # 显示环境选择对话框
     try:
         from database import db
         environments = db.get_all_environments(include_inactive=False)
-        if len(environments) > 1 or (len(environments) == 1 and not environments[0].get('default_env')):
-            # 有多个环境或没有默认环境时，显示选择对话框
-            selected_env = window.show_environment_selection_dialog()
-            if not selected_env:
-                # 用户没有选择环境，使用默认或第一个环境
-                default_env = db.get_active_environment()
-                if default_env:
-                    window._apply_environment_settings(default_env)
-        else:
-            # 只有一个默认环境，自动应用
-            if environments:
-                window._apply_environment_settings(environments[0])
+
+        if len(environments) > 1:
+            # 有多个环境时，显示选择对话框
+            dialog = EnvironmentDialog(window)
+            result = dialog.exec_()
+            if result == QDialog.Accepted:
+                selected_env = dialog.get_selected_environment()
+                if selected_env:
+                    window._apply_environment_settings(selected_env)
+        elif len(environments) == 1:
+            # 只有一个环境，自动应用
+            window._apply_environment_settings(environments[0])
     except Exception as e:
         logger.warning(f"环境选择失败，使用默认设置: {e}")
 

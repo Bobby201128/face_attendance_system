@@ -817,7 +817,11 @@ def upload_face_image(person_id):
 
         face_encoding = pickle.dumps(encodings[0])
 
-        # 添加到face_images表（待审核）
+        # 直接激活人脸，无需审批
+        # 更新人员表的人脸编码
+        db.update_person(person_id, face_encoding=face_encoding, face_image_path=filepath)
+
+        # 保存人脸记录（状态为已激活）
         face_image_id = db.add_face_image(
             person_id=person_id,
             image_path=filepath,
@@ -825,8 +829,13 @@ def upload_face_image(person_id):
             upload_source="mobile"
         )
 
-        db.add_log("upload_face", f"上传人脸照片: 人员ID={person_id}", ip_address=get_ip())
-        return success_response({"id": face_image_id, "message": "人脸上传成功，等待审核"})
+        # 直接标记为已激活
+        import sqlite3
+        with db.get_connection() as conn:
+            conn.execute("UPDATE face_images SET approval_status='approved', is_active=1 WHERE id=?", (face_image_id,))
+
+        db.add_log("upload_face", f"上传并激活人脸: 人员ID={person_id}", ip_address=get_ip())
+        return success_response({"id": face_image_id, "message": "人脸上传成功并已激活"})
 
     except Exception as e:
         logger.error(f"人脸处理失败: {e}")
