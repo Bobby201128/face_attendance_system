@@ -30,10 +30,7 @@ import config
 from database import db
 from face_engine import FaceEngine, CameraManager
 from video_threads import VideoThread, RecognitionThread
-from pc_app_extensions import (
-    EnvironmentDialog, FaceApprovalDialog, PersonEnvironmentDialog,
-    PCUIExtensions, create_extension_menu
-)
+from pc_app_extensions import EnvironmentDialog
 
 logger = logging.getLogger(__name__)
 
