@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python test_camera.py)",
+      "Bash(pip install:*)",
+      "Bash(python test_image_processing.py)",
+      "Bash(python test_fix.py)"
+    ]
+  }
+}

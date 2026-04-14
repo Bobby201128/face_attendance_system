@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit -m 'feat: 添加系统优化功能增强提案文档:*)",
+      "Bash(conda activate:*)",
+      "Bash(python database_migration_v2.py)",
+      "Bash(python -m py_compile api_server.py)",
+      "Bash(python -m py_compile database.py)",
+      "Bash(python test_database_upgrade.py)",
+      "Bash(python integrate_mobile_ui.py)",
+      "Bash(python integrate_ui_fixed.py)"
+    ]
+  }
+}

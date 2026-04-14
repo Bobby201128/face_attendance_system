@@ -541,6 +541,443 @@ def get_logs():
     return success_response({"logs": logs, "total": total, "page": page})
 
 
+# ==================== 环境管理接口 ====================
+
+@app.route('/api/environments', methods=['GET'])
+@require_auth
+def get_environments():
+    """获取环境列表"""
+    include_inactive = request.args.get('include_inactive', '0') == '1'
+    environments = db.get_all_environments(include_inactive=include_inactive)
+    return success_response({"environments": environments})
+
+
+@app.route('/api/environments', methods=['POST'])
+@require_auth
+def create_environment():
+    """创建环境"""
+    params = get_params()
+
+    # 验证必填字段
+    if not params.get('name'):
+        return error_response("环境名称不能为空")
+
+    try:
+        env_id = db.add_environment(
+            name=params.get('name'),
+            description=params.get('description', ''),
+            work_start_hour=int(params.get('work_start_hour', 9)),
+            work_start_minute=int(params.get('work_start_minute', 0)),
+            work_end_hour=int(params.get('work_end_hour', 18)),
+            work_end_minute=int(params.get('work_end_minute', 0)),
+            late_grace_minutes=int(params.get('late_grace_minutes', 15)),
+            sign_in_required=int(params.get('sign_in_required', 1)),
+            sign_out_required=int(params.get('sign_out_required', 1)),
+            sign_mode=params.get('sign_mode', 'auto'),
+            recognition_threshold=float(params.get('recognition_threshold', 0.55)),
+            confirm_frames=int(params.get('confirm_frames', 3)),
+            sign_cooldown_seconds=int(params.get('sign_cooldown_seconds', 60)),
+            is_active=int(params.get('is_active', 1)),
+            default_env=int(params.get('default_env', 0))
+        )
+        db.add_log("create_environment", f"创建环境: {params.get('name')}", ip_address=get_ip())
+        return success_response({"id": env_id}, "环境创建成功")
+    except Exception as e:
+        logger.error(f"创建环境失败: {e}")
+        return error_response(f"创建失败: {str(e)}")
+
+
+@app.route('/api/environments/<int:env_id>', methods=['GET'])
+@require_auth
+def get_environment(env_id):
+    """获取单个环境"""
+    env = db.get_environment(env_id)
+    if not env:
+        return error_response("环境不存在", 404)
+    return success_response({"environment": env})
+
+
+@app.route('/api/environments/<int:env_id>', methods=['PUT'])
+@require_auth
+def update_environment(env_id):
+    """更新环境"""
+    params = get_params()
+
+    # 检查环境是否存在
+    env = db.get_environment(env_id)
+    if not env:
+        return error_response("环境不存在", 404)
+
+    try:
+        db.update_environment(env_id, **params)
+        db.add_log("update_environment", f"更新环境: {env_id}", ip_address=get_ip())
+        return success_response(message="环境更新成功")
+    except Exception as e:
+        logger.error(f"更新环境失败: {e}")
+        return error_response(f"更新失败: {str(e)}")
+
+
+@app.route('/api/environments/<int:env_id>', methods=['DELETE'])
+@require_auth
+def delete_environment(env_id):
+    """删除环境"""
+    env = db.get_environment(env_id)
+    if not env:
+        return error_response("环境不存在", 404)
+
+    if env.get('default_env'):
+        return error_response("不能删除默认环境")
+
+    try:
+        db.delete_environment(env_id)
+        db.add_log("delete_environment", f"删除环境: {env_id}", ip_address=get_ip())
+        return success_response(message="环境删除成功")
+    except Exception as e:
+        logger.error(f"删除环境失败: {e}")
+        return error_response(f"删除失败: {str(e)}")
+
+
+@app.route('/api/environments/<int:env_id>/set-default', methods=['PUT'])
+@require_auth
+def set_default_environment(env_id):
+    """设置默认环境"""
+    env = db.get_environment(env_id)
+    if not env:
+        return error_response("环境不存在", 404)
+
+    try:
+        db.set_default_environment(env_id)
+        db.add_log("set_default_environment", f"设置默认环境: {env_id}", ip_address=get_ip())
+        return success_response(message="默认环境设置成功")
+    except Exception as e:
+        logger.error(f"设置默认环境失败: {e}")
+        return error_response(f"设置失败: {str(e)}")
+
+
+@app.route('/api/environments/active', methods=['GET'])
+@require_auth
+def get_active_environment():
+    """获取当前激活的环境"""
+    env = db.get_active_environment()
+    if not env:
+        return error_response("未找到激活的环境", 404)
+    return success_response({"environment": env})
+
+
+# ==================== 分类管理接口 ====================
+
+@app.route('/api/categories', methods=['GET'])
+@require_auth
+def get_categories():
+    """获取分类列表"""
+    include_inactive = request.args.get('include_inactive', '0') == '1'
+    level = request.args.get('level')
+
+    if level:
+        level = int(level)
+        categories = db.get_categories_by_level(level)
+    else:
+        categories = db.get_all_categories(include_inactive=include_inactive)
+
+    return success_response({"categories": categories})
+
+
+@app.route('/api/categories/tree', methods=['GET'])
+@require_auth
+def get_category_tree():
+    """获取分类树"""
+    tree = db.get_category_tree()
+    return success_response({"tree": tree})
+
+
+@app.route('/api/categories', methods=['POST'])
+@require_auth
+def create_category():
+    """创建分类"""
+    params = get_params()
+
+    if not params.get('name'):
+        return error_response("分类名称不能为空")
+
+    try:
+        category_id = db.add_category(
+            name=params.get('name'),
+            parent_id=int(params.get('parent_id')) if params.get('parent_id') else None,
+            level=int(params.get('level', 1)),
+            sort_order=int(params.get('sort_order', 0)),
+            description=params.get('description', ''),
+            is_active=int(params.get('is_active', 1))
+        )
+        db.add_log("create_category", f"创建分类: {params.get('name')}", ip_address=get_ip())
+        return success_response({"id": category_id}, "分类创建成功")
+    except Exception as e:
+        logger.error(f"创建分类失败: {e}")
+        return error_response(f"创建失败: {str(e)}")
+
+
+@app.route('/api/categories/<int:category_id>', methods=['GET'])
+@require_auth
+def get_category(category_id):
+    """获取单个分类"""
+    category = db.get_category(category_id)
+    if not category:
+        return error_response("分类不存在", 404)
+    return success_response({"category": category})
+
+
+@app.route('/api/categories/<int:category_id>', methods=['PUT'])
+@require_auth
+def update_category(category_id):
+    """更新分类"""
+    params = get_params()
+
+    category = db.get_category(category_id)
+    if not category:
+        return error_response("分类不存在", 404)
+
+    try:
+        db.update_category(category_id, **params)
+        db.add_log("update_category", f"更新分类: {category_id}", ip_address=get_ip())
+        return success_response(message="分类更新成功")
+    except Exception as e:
+        logger.error(f"更新分类失败: {e}")
+        return error_response(f"更新失败: {str(e)}")
+
+
+@app.route('/api/categories/<int:category_id>', methods=['DELETE'])
+@require_auth
+def delete_category(category_id):
+    """删除分类"""
+    category = db.get_category(category_id)
+    if not category:
+        return error_response("分类不存在", 404)
+
+    try:
+        db.delete_category(category_id)
+        db.add_log("delete_category", f"删除分类: {category_id}", ip_address=get_ip())
+        return success_response(message="分类删除成功")
+    except Exception as e:
+        logger.error(f"删除分类失败: {e}")
+        return error_response(f"删除失败: {str(e)}")
+
+
+@app.route('/api/categories/level/<int:level>', methods=['GET'])
+@require_auth
+def get_categories_by_level(level):
+    """按层级获取分类"""
+    parent_id = request.args.get('parent_id')
+    if parent_id:
+        parent_id = int(parent_id)
+
+    categories = db.get_categories_by_level(level, parent_id)
+    return success_response({"categories": categories})
+
+
+# ==================== 人脸审核接口 ====================
+
+@app.route('/api/persons/<int:person_id>/face-upload', methods=['POST'])
+@require_auth
+def upload_face_image(person_id):
+    """上传人脸照片（手机端）"""
+    person = db.get_person(person_id)
+    if not person:
+        return error_response("人员不存在", 404)
+
+    # 检查是否有文件上传
+    if 'image' not in request.files:
+        return error_response("未找到图片文件")
+
+    file = request.files['image']
+    if file.filename == '':
+        return error_response("未选择文件")
+
+    # 保存图片
+    import uuid
+    filename = f"{person_id}_{uuid.uuid4().hex[:8]}_{datetime.now().strftime('%Y%m%d%H%M%S')}.jpg"
+    filepath = os.path.join('faces', filename)
+
+    os.makedirs('faces', exist_ok=True)
+    file.save(filepath)
+
+    # 提取人脸编码
+    import face_recognition
+    import numpy as np
+
+    try:
+        image = face_recognition.load_image_file(filepath)
+        encodings = face_recognition.face_encodings(image)
+
+        if len(encodings) == 0:
+            os.remove(filepath)
+            return error_response("未检测到人脸")
+
+        if len(encodings) > 1:
+            os.remove(filepath)
+            return error_response("检测到多个人脸，请上传单人照片")
+
+        face_encoding = pickle.dumps(encodings[0])
+
+        # 添加到face_images表（待审核）
+        face_image_id = db.add_face_image(
+            person_id=person_id,
+            image_path=filepath,
+            face_encoding=face_encoding,
+            upload_source="mobile"
+        )
+
+        db.add_log("upload_face", f"上传人脸照片: 人员ID={person_id}", ip_address=get_ip())
+        return success_response({"id": face_image_id, "message": "人脸上传成功，等待审核"})
+
+    except Exception as e:
+        logger.error(f"人脸处理失败: {e}")
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        return error_response(f"人脸处理失败: {str(e)}")
+
+
+@app.route('/api/faces/pending', methods=['GET'])
+@require_auth
+def get_pending_faces():
+    """获取待审核的人脸照片"""
+    page = int(request.args.get('page', 1))
+    per_page = int(request.args.get('per_page', 20))
+
+    pending, total = db.get_pending_faces(page=page, per_page=per_page)
+
+    # 转换图片为base64
+    for face in pending:
+        if face.get('image_path') and os.path.exists(face['image_path']):
+            with open(face['image_path'], 'rb') as f:
+                face['image_base64'] = base64.b64encode(f.read()).decode('utf-8')
+
+    return success_response({
+        "faces": pending,
+        "total": total,
+        "page": page,
+        "per_page": per_page
+    })
+
+
+@app.route('/api/faces/<int:face_id>/approve', methods=['PUT'])
+@require_auth
+def approve_face(face_id):
+    """批准人脸照片"""
+    # 获取审核人ID（从token解析，暂时使用固定ID）
+    admin_id = 1  # TODO: 从认证token中解析真实的操作人ID
+
+    try:
+        success, message = db.approve_face_image(face_id, admin_id)
+        if success:
+            db.add_log("approve_face", f"批准人脸照片: ID={face_id}", ip_address=get_ip())
+            return success_response(message=message)
+        else:
+            return error_response(message)
+    except Exception as e:
+        logger.error(f"批准人脸失败: {e}")
+        return error_response(f"操作失败: {str(e)}")
+
+
+@app.route('/api/faces/<int:face_id>/reject', methods=['PUT'])
+@require_auth
+def reject_face(face_id):
+    """拒绝人脸照片"""
+    params = get_params()
+    reason = params.get('reason', '')
+
+    try:
+        db.reject_face_image(face_id, reason)
+        db.add_log("reject_face", f"拒绝人脸照片: ID={face_id}, 原因: {reason}", ip_address=get_ip())
+        return success_response(message="人脸照片已拒绝")
+    except Exception as e:
+        logger.error(f"拒绝人脸失败: {e}")
+        return error_response(f"操作失败: {str(e)}")
+
+
+@app.route('/api/persons/<int:person_id>/faces', methods=['GET'])
+@require_auth
+def get_person_faces(person_id):
+    """获取人员的人脸照片列表"""
+    person = db.get_person(person_id)
+    if not person:
+        return error_response("人员不存在", 404)
+
+    faces = db.get_person_face_images(person_id)
+
+    # 转换图片为base64
+    for face in faces:
+        if face.get('image_path') and os.path.exists(face['image_path']):
+            with open(face['image_path'], 'rb') as f:
+                face['image_base64'] = base64.b64encode(f.read()).decode('utf-8')
+
+    return success_response({"faces": faces})
+
+
+# ==================== 人员环境关联接口 ====================
+
+@app.route('/api/persons/<int:person_id>/environments', methods=['GET'])
+@require_auth
+def get_person_environments(person_id):
+    """获取人员所属的环境"""
+    person = db.get_person(person_id)
+    if not person:
+        return error_response("人员不存在", 404)
+
+    environments = db.get_person_environments(person_id)
+    return success_response({"environments": environments})
+
+
+@app.route('/api/persons/<int:person_id>/environments', methods=['PUT'])
+@require_auth
+def update_person_environments(person_id):
+    """设置人员环境关联"""
+    person = db.get_person(person_id)
+    if not person:
+        return error_response("人员不存在", 404)
+
+    params = get_params()
+    environment_ids = params.get('environment_ids', [])
+
+    if not isinstance(environment_ids, list):
+        return error_response("environment_ids必须是数组")
+
+    try:
+        # 先清除现有关联
+        with db.get_connection() as conn:
+            conn.execute("DELETE FROM person_environment_rel WHERE person_id = ?", (person_id,))
+
+        # 添加新关联
+        for idx, env_id in enumerate(environment_ids):
+            is_primary = 1 if idx == 0 else 0
+            db.add_person_to_environment(person_id, env_id, is_primary)
+
+        db.add_log("update_person_environments", f"更新人员环境: 人员ID={person_id}, 环境={environment_ids}",
+                  ip_address=get_ip())
+        return success_response(message="人员环境设置成功")
+    except Exception as e:
+        logger.error(f"设置人员环境失败: {e}")
+        return error_response(f"设置失败: {str(e)}")
+
+
+@app.route('/api/environments/<int:env_id>/persons', methods=['GET'])
+@require_auth
+def get_environment_persons(env_id):
+    """获取环境中的所有人员"""
+    env = db.get_environment(env_id)
+    if not env:
+        return error_response("环境不存在", 404)
+
+    persons = db.get_environment_persons(env_id)
+
+    # 不返回人脸编码
+    result_persons = []
+    for p in persons:
+        rp = {k: v for k, v in p.items() if k != 'face_encoding'}
+        rp['has_face'] = p.get('face_encoding') is not None
+        result_persons.append(rp)
+
+    return success_response({"persons": result_persons})
+
+
 # ==================== 实时监控接口 ====================
 
 @app.route('/api/monitor/snapshot', methods=['GET'])

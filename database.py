@@ -552,6 +552,355 @@ class Database:
 
         return logs, total
 
+    # ==================== 环境管理 ====================
+
+    def add_environment(self, name, description="", work_start_hour=9, work_start_minute=0,
+                       work_end_hour=18, work_end_minute=0, late_grace_minutes=15,
+                       sign_in_required=1, sign_out_required=1, sign_mode="auto",
+                       recognition_threshold=0.55, confirm_frames=3, sign_cooldown_seconds=60,
+                       is_active=1, default_env=0):
+        """添加环境"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # 如果设置为默认环境，先取消其他默认环境
+            if default_env:
+                cursor.execute("UPDATE environments SET default_env = 0")
+
+            cursor.execute("""
+                INSERT INTO environments (name, description, work_start_hour, work_start_minute,
+                                        work_end_hour, work_end_minute, late_grace_minutes,
+                                        sign_in_required, sign_out_required, sign_mode,
+                                        recognition_threshold, confirm_frames, sign_cooldown_seconds,
+                                        is_active, default_env)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (name, description, work_start_hour, work_start_minute, work_end_hour,
+                  work_end_minute, late_grace_minutes, sign_in_required, sign_out_required,
+                  sign_mode, recognition_threshold, confirm_frames, sign_cooldown_seconds,
+                  is_active, default_env))
+            return cursor.lastrowid
+
+    def update_environment(self, env_id, **kwargs):
+        """更新环境信息"""
+        allowed_fields = ['name', 'description', 'work_start_hour', 'work_start_minute',
+                         'work_end_hour', 'work_end_minute', 'late_grace_minutes',
+                         'sign_in_required', 'sign_out_required', 'sign_mode',
+                         'recognition_threshold', 'confirm_frames', 'sign_cooldown_seconds',
+                         'is_active', 'default_env']
+        updates = []
+        values = []
+
+        for field, value in kwargs.items():
+            if field in allowed_fields:
+                updates.append(f"{field} = ?")
+                values.append(value)
+
+        if not updates:
+            return False
+
+        # 如果设置为默认环境，先取消其他默认环境
+        if kwargs.get('default_env'):
+            with self.get_connection() as conn:
+                conn.execute("UPDATE environments SET default_env = 0")
+
+        updates.append("updated_at = CURRENT_TIMESTAMP")
+        values.append(env_id)
+
+        with self.get_connection() as conn:
+            conn.execute(
+                f"UPDATE environments SET {', '.join(updates)} WHERE id = ?",
+                values
+            )
+            return True
+
+    def delete_environment(self, env_id):
+        """删除环境"""
+        with self.get_connection() as conn:
+            conn.execute("DELETE FROM environments WHERE id = ?", (env_id,))
+            return True
+
+    def get_environment(self, env_id):
+        """获取单个环境"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM environments WHERE id = ?", (env_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def get_all_environments(self, include_inactive=False):
+        """获取所有环境"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            if include_inactive:
+                cursor.execute("SELECT * FROM environments ORDER BY default_env DESC, name ASC")
+            else:
+                cursor.execute("SELECT * FROM environments WHERE is_active = 1 ORDER BY default_env DESC, name ASC")
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_active_environment(self):
+        """获取当前激活的环境（默认环境）"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM environments WHERE default_env = 1 AND is_active = 1")
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def set_default_environment(self, env_id):
+        """设置默认环境"""
+        with self.get_connection() as conn:
+            conn.execute("UPDATE environments SET default_env = 0")
+            conn.execute("UPDATE environments SET default_env = 1 WHERE id = ?", (env_id,))
+            return True
+
+    # ==================== 分类管理 ====================
+
+    def add_category(self, name, parent_id=None, level=1, sort_order=0, description="", is_active=1):
+        """添加分类"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO categories (name, parent_id, level, sort_order, description, is_active)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (name, parent_id, level, sort_order, description, is_active))
+            return cursor.lastrowid
+
+    def update_category(self, category_id, **kwargs):
+        """更新分类信息"""
+        allowed_fields = ['name', 'parent_id', 'level', 'sort_order', 'description', 'is_active']
+        updates = []
+        values = []
+
+        for field, value in kwargs.items():
+            if field in allowed_fields:
+                updates.append(f"{field} = ?")
+                values.append(value)
+
+        if not updates:
+            return False
+
+        updates.append("updated_at = CURRENT_TIMESTAMP")
+        values.append(category_id)
+
+        with self.get_connection() as conn:
+            conn.execute(
+                f"UPDATE categories SET {', '.join(updates)} WHERE id = ?",
+                values
+            )
+            return True
+
+    def delete_category(self, category_id):
+        """删除分类（级联删除子分类）"""
+        with self.get_connection() as conn:
+            conn.execute("DELETE FROM categories WHERE id = ?", (category_id,))
+            return True
+
+    def get_category(self, category_id):
+        """获取单个分类"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM categories WHERE id = ?", (category_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def get_all_categories(self, include_inactive=False, level=None):
+        """获取所有分类"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            conditions = []
+            params = []
+
+            if not include_inactive:
+                conditions.append("is_active = 1")
+
+            if level is not None:
+                conditions.append("level = ?")
+                params.append(level)
+
+            where_clause = " AND ".join(conditions) if conditions else "1=1"
+
+            cursor.execute(
+                f"SELECT * FROM categories WHERE {where_clause} ORDER BY level ASC, sort_order ASC",
+                params
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_categories_by_level(self, level, parent_id=None):
+        """获取指定层级的分类"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            if parent_id is not None:
+                cursor.execute(
+                    "SELECT * FROM categories WHERE level = ? AND parent_id = ? AND is_active = 1 ORDER BY sort_order ASC",
+                    (level, parent_id)
+                )
+            else:
+                cursor.execute(
+                    "SELECT * FROM categories WHERE level = ? AND is_active = 1 ORDER BY sort_order ASC",
+                    (level,)
+                )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_category_tree(self):
+        """获取完整的分类树"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM categories WHERE is_active = 1 ORDER BY level ASC, sort_order ASC")
+            all_categories = [dict(row) for row in cursor.fetchall()]
+
+            # 构建树形结构
+            def build_tree(parent_id=None):
+                return [
+                    {**cat, 'children': build_tree(cat['id'])}
+                    for cat in all_categories
+                    if cat['parent_id'] == parent_id
+                ]
+
+            return build_tree(None)
+
+    # ==================== 人脸审核管理 ====================
+
+    def add_face_image(self, person_id, image_path, face_encoding=None, upload_source="mobile"):
+        """添加人脸照片（待审核）"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO face_images (person_id, image_path, face_encoding, upload_source, approval_status)
+                VALUES (?, ?, ?, ?, 'pending')
+            """, (person_id, image_path, face_encoding, upload_source))
+            return cursor.lastrowid
+
+    def approve_face_image(self, face_image_id, approved_by):
+        """批准人脸照片"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # 获取人脸照片信息
+            cursor.execute("SELECT person_id, face_encoding, image_path FROM face_images WHERE id = ?", (face_image_id,))
+            face_data = cursor.fetchone()
+
+            if not face_data:
+                return False, "人脸照片不存在"
+
+            # 更新审核状态
+            cursor.execute("""
+                UPDATE face_images
+                SET approval_status = 'approved', approved_by = ?, approved_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (approved_by, face_image_id))
+
+            # 更新人员表的人脸编码（激活该人脸）
+            cursor.execute("""
+                UPDATE persons
+                SET face_encoding = ?, face_image_path = ?
+                WHERE id = ?
+            """, (face_data['face_encoding'], face_data['image_path'], face_data['person_id']))
+
+            # 将该人员的其他待审核/已批准的人脸设为非活跃
+            cursor.execute("""
+                UPDATE face_images
+                SET is_active = 0
+                WHERE person_id = ? AND id != ? AND approval_status = 'approved'
+            """, (face_data['person_id'], face_image_id))
+
+            conn.commit()
+            return True, "审核通过"
+
+    def reject_face_image(self, face_image_id, reject_reason=""):
+        """拒绝人脸照片"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE face_images
+                SET approval_status = 'rejected', reject_reason = ?, is_active = 0
+                WHERE id = ?
+            """, (reject_reason, face_image_id))
+            return True
+
+    def get_pending_faces(self, page=1, per_page=20):
+        """获取待审核的人脸照片"""
+        offset = (page - 1) * per_page
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT fi.*, p.name as person_name, p.employee_id
+                FROM face_images fi
+                JOIN persons p ON fi.person_id = p.id
+                WHERE fi.approval_status = 'pending'
+                ORDER BY fi.created_at ASC
+                LIMIT ? OFFSET ?
+            """, (per_page, offset))
+            pending = [dict(row) for row in cursor.fetchall()]
+
+            cursor.execute("SELECT COUNT(*) as total FROM face_images WHERE approval_status = 'pending'")
+            total = cursor.fetchone()['total']
+
+        return pending, total
+
+    def get_person_face_images(self, person_id):
+        """获取某人的所有人脸照片"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT fi.*,
+                       CASE WHEN fi.approval_status = 'approved' AND fi.is_active = 1 THEN 1 ELSE 0 END as is_current
+                FROM face_images fi
+                WHERE fi.person_id = ?
+                ORDER BY fi.created_at DESC
+            """, (person_id,))
+            return [dict(row) for row in cursor.fetchall()]
+
+    # ==================== 人员环境关联 ====================
+
+    def add_person_to_environment(self, person_id, environment_id, is_primary=0):
+        """将人员添加到环境"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # 如果设置为主要环境，先取消其他主要环境
+            if is_primary:
+                cursor.execute("UPDATE person_environment_rel SET is_primary = 0 WHERE person_id = ?", (person_id,))
+
+            cursor.execute("""
+                INSERT OR REPLACE INTO person_environment_rel (person_id, environment_id, is_primary)
+                VALUES (?, ?, ?)
+            """, (person_id, environment_id, is_primary))
+            return True
+
+    def remove_person_from_environment(self, person_id, environment_id):
+        """从环境中移除人员"""
+        with self.get_connection() as conn:
+            conn.execute("DELETE FROM person_environment_rel WHERE person_id = ? AND environment_id = ?",
+                        (person_id, environment_id))
+            return True
+
+    def get_person_environments(self, person_id):
+        """获取人员所属的环境"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT e.*, per.is_primary, per.created_at as added_at
+                FROM environments e
+                JOIN person_environment_rel per ON e.id = per.environment_id
+                WHERE per.person_id = ? AND e.is_active = 1
+                ORDER BY per.is_primary DESC, e.name ASC
+            """, (person_id,))
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_environment_persons(self, environment_id):
+        """获取环境中的所有人员"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT p.*, per.is_primary, per.created_at as added_to_env_at
+                FROM persons p
+                JOIN person_environment_rel per ON p.id = per.person_id
+                WHERE per.environment_id = ? AND p.status = 1
+                ORDER BY per.is_primary DESC, p.name ASC
+            """, (environment_id,))
+            return [dict(row) for row in cursor.fetchall()]
+
     # ==================== 数据导出 ====================
 
     def export_attendance_excel(self, start_date, end_date, filepath):
