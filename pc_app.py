@@ -510,44 +510,6 @@ class MainWindow(QMainWindow):
 
         self.tabs.addTab(records_page, "记录")
 
-        # --- 人员管理页 ---
-        person_page = QWidget()
-        person_layout = QVBoxLayout(person_page)
-
-        # 搜索栏
-        search_bar = QHBoxLayout()
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("搜索姓名/工号...")
-        self.search_input.returnPressed.connect(self._search_persons)
-        search_bar.addWidget(self.search_input)
-
-        btn_search = QPushButton("搜索")
-        btn_search.clicked.connect(self._search_persons)
-        search_bar.addWidget(btn_search)
-
-        btn_add = QPushButton("添加人员")
-        btn_add.setObjectName("primaryBtn")
-        btn_add.clicked.connect(self._add_person_dialog)
-        search_bar.addWidget(btn_add)
-
-        btn_refresh = QPushButton("刷新")
-        btn_refresh.clicked.connect(self._refresh_persons)
-        search_bar.addWidget(btn_refresh)
-
-        person_layout.addLayout(search_bar)
-
-        self.person_table = QTableWidget()
-        self.person_table.setColumnCount(6)
-        self.person_table.setHorizontalHeaderLabels(["姓名", "工号", "部门", "职位", "电话", "状态"])
-        self.person_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.person_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.person_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.person_table.setAlternatingRowColors(True)
-        self.person_table.cellDoubleClicked.connect(self._edit_person_dialog)
-        person_layout.addWidget(self.person_table)
-
-        self.tabs.addTab(person_page, "人员")
-
         # 添加到主布局
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(left_widget)
@@ -564,9 +526,9 @@ class MainWindow(QMainWindow):
         widget = QFrame()
         widget.setStyleSheet("""
             QFrame {
-                background-color: #16213e;
-                border: 1px solid #0f3460;
-                border-radius: 8px;
+                background-color: #2a2a2a;
+                border: 1px solid #404040;
+                border-radius: 4px;
                 padding: 10px;
             }
         """)
@@ -881,117 +843,6 @@ class MainWindow(QMainWindow):
 
         except Exception as e:
             logger.error(f"刷新记录失败: {e}")
-
-    def _refresh_persons(self):
-        """刷新人员列表"""
-        try:
-            persons, total = db.get_all_persons(include_inactive=True, per_page=200)
-            self.person_table.setRowCount(len(persons))
-
-            for row, p in enumerate(persons):
-                items = [
-                    p.get('name', ''),
-                    p.get('employee_id', ''),
-                    p.get('department', ''),
-                    p.get('position', ''),
-                    p.get('phone', ''),
-                    "启用" if p.get('status', 1) == 1 else "禁用"
-                ]
-
-                for col, text in enumerate(items):
-                    item = QTableWidgetItem(str(text) if text else '')
-                    item.setTextAlignment(Qt.AlignCenter)
-                    if col == 5 and text == "禁用":
-                        item.setForeground(QColor(255, 100, 100))
-                    self.person_table.setItem(row, col, item)
-
-        except Exception as e:
-            logger.error(f"刷新人员列表失败: {e}")
-
-    def _search_persons(self):
-        """搜索人员"""
-        search = self.search_input.text().strip()
-        try:
-            persons, total = db.get_all_persons(search=search, include_inactive=True, per_page=200)
-            self.person_table.setRowCount(len(persons))
-
-            for row, p in enumerate(persons):
-                items = [
-                    p.get('name', ''),
-                    p.get('employee_id', ''),
-                    p.get('department', ''),
-                    p.get('position', ''),
-                    p.get('phone', ''),
-                    "启用" if p.get('status', 1) == 1 else "禁用"
-                ]
-
-                for col, text in enumerate(items):
-                    item = QTableWidgetItem(str(text) if text else '')
-                    item.setTextAlignment(Qt.AlignCenter)
-                    self.person_table.setItem(row, col, item)
-
-        except Exception as e:
-            logger.error(f"搜索人员失败: {e}")
-
-    # ==================== 人员管理对话框 ====================
-
-    def _add_person_dialog(self):
-        """添加人员对话框"""
-        dialog = PersonDialog(self, title="添加人员")
-        if dialog.exec_() == QDialog.Accepted:
-            data = dialog.get_data()
-            try:
-                person_id = db.add_person(**data)
-                QMessageBox.information(self, "成功", f"人员 {data['name']} 添加成功 (ID={person_id})")
-                self._refresh_persons()
-                self._refresh_stats()
-                self.lbl_face_count.setText(str(self.face_engine.get_face_count()))
-
-                # 询问是否注册人脸
-                reply = QMessageBox.question(self, "注册人脸",
-                    "是否现在为此人员注册人脸？\n需要使用摄像头拍照或上传照片。",
-                    QMessageBox.Yes | QMessageBox.No)
-                if reply == QMessageBox.Yes:
-                    self._register_face_dialog(person_id, data['name'])
-
-            except Exception as e:
-                QMessageBox.critical(self, "错误", f"添加失败: {e}")
-
-    def _edit_person_dialog(self, row, col):
-        """编辑人员对话框"""
-        person_id = self.person_table.item(row, 0).data(Qt.UserRole)
-        if person_id is None:
-            # 尝试从数据库查找
-            name = self.person_table.item(row, 0).text()
-            persons, _ = db.get_all_persons(search=name, include_inactive=True)
-            if persons:
-                person_id = persons[0]['id']
-
-        if person_id is None:
-            return
-
-        person = db.get_person(person_id)
-        if not person:
-            return
-
-        dialog = PersonDialog(self, title="编辑人员", person=person)
-        if dialog.exec_() == QDialog.Accepted:
-            data = dialog.get_data()
-            try:
-                db.update_person(person_id, **data)
-                QMessageBox.information(self, "成功", "人员信息已更新")
-                self._refresh_persons()
-            except Exception as e:
-                QMessageBox.critical(self, "错误", f"更新失败: {e}")
-
-    def _register_face_dialog(self, person_id, name):
-        """注册人脸对话框"""
-        dialog = FaceRegisterDialog(self, person_id, name, self.camera)
-        if dialog.exec_() == QDialog.Accepted:
-            self._load_faces()
-            self._refresh_persons()
-            self.lbl_face_count.setText(str(self.face_engine.get_face_count()))
-            QMessageBox.information(self, "成功", f"{name} 的人脸注册成功")
 
     # ==================== 人脸加载 ====================
 

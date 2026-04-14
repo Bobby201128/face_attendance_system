@@ -4,7 +4,13 @@
       "Bash(python test_camera.py)",
       "Bash(pip install:*)",
       "Bash(python test_image_processing.py)",
-      "Bash(python test_fix.py)"
+      "Bash(python test_fix.py)",
+      "Bash(python -m py_compile pc_app.py pc_app_extensions.py main.py)",
+      "Bash(python test_startup.py)",
+      "Bash(python test_simplified.py)",
+      "Bash(git commit -m 'test: 添加系统启动和功能测试脚本:*)",
+      "Bash(git commit -m 'test: 添加系统功能测试脚本:*)",
+      "Bash(git commit -m 'docs: 添加修复完成报告:*)"
     ]
   }
 }
