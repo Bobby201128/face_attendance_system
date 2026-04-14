@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>人脸识别签到系统</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #0066ff;
+            --primary-light: #3388ff;
+            --primary-dark: #0044cc;
+            --success: #00c853;
+            --warning: #ff9100;
+            --danger: #ff1744;
+            --bg: #f5f7fa;
+            --card: #ffffff;
+            --text: #333333;
+            --text-light: #888888;
+            --border: #e8ecf0;
+            --shadow: 0 2px 12px rgba(0,0,0,0.08);
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 14px;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* ===== Login Page ===== */
+        .login-page {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0066ff 0%, #0044cc 100%);
+            padding: 20px;
+        }
+        .login-card {
+            background: white;
+            border-radius: 16px;
+            padding: 40px 30px;
+            width: 100%;
+            max-width: 380px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        }
+        .login-logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .login-logo .icon {
+            width: 64px; height: 64px;
+            background: var(--primary);
+            border-radius: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: white;
+            margin-bottom: 12px;
+        }
+        .login-logo h1 { font-size: 20px; color: var(--text); }
+        .login-logo p { font-size: 13px; color: var(--text-light); margin-top: 4px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; font-size: 13px; color: var(--text-light); margin-bottom: 6px; }
+        .form-group input {
+            width: 100%; height: 44px; border: 1px solid var(--border);
+            border-radius: 10px; padding: 0 14px; font-size: 15px;
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus { outline: none; border-color: var(--primary); }
+        .btn {
+            width: 100%; height: 46px; border: none; border-radius: 10px;
+            font-size: 16px; font-weight: 600; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:active { background: var(--primary-dark); }
+        .login-error { color: var(--danger); font-size: 13px; text-align: center; margin-top: 10px; display: none; }
+        .server-input { margin-top: 16px; }
+        .server-input input { font-size: 13px; height: 38px; }
+
+        /* ===== Main App ===== */
+        .app { display: none; min-height: 100vh; padding-bottom: 70px; }
+
+        /* Header */
+        .header {
+            background: var(--primary);
+            color: white;
+            padding: 16px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .header-top { display: flex; align-items: center; justify-content: space-between; }
+        .header h1 { font-size: 18px; font-weight: 600; }
+        .header-btn {
+            background: rgba(255,255,255,0.15); border: none; color: white;
+            width: 36px; height: 36px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 18px;
+        }
+
+        /* Bottom Navigation */
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: white;
+            display: flex;
+            border-top: 1px solid var(--border);
+            z-index: 100;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .nav-item {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; padding: 8px 0;
+            cursor: pointer; transition: color 0.2s;
+            color: var(--text-light); text-decoration: none;
+            border: none; background: none; font-family: inherit;
+        }
+        .nav-item.active { color: var(--primary); }
+        .nav-item .nav-icon { font-size: 22px; margin-bottom: 2px; }
+        .nav-item .nav-text { font-size: 11px; }
+
+        /* Page Content */
+        .page { display: none; padding: 16px; }
+        .page.active { display: block; }
+
+        /* Cards */
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+        }
+        .card-title {
+            font-size: 15px; font-weight: 600;
+            margin-bottom: 12px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .stat-card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+        .stat-value { font-size: 32px; font-weight: 700; color: var(--primary); }
+        .stat-label { font-size: 13px; color: var(--text-light); margin-top: 4px; }
+        .stat-card.success .stat-value { color: var(--success); }
+        .stat-card.warning .stat-value { color: var(--warning); }
+        .stat-card.danger .stat-value { color: var(--danger); }
+
+        /* Progress Bar */
+        .progress-bar {
+            height: 8px; background: var(--border); border-radius: 4px;
+            overflow: hidden; margin-top: 8px;
+        }
+        .progress-fill {
+            height: 100%; background: var(--primary);
+            border-radius: 4px; transition: width 0.5s;
+        }
+
+        /* Record List */
+        .record-item {
+            display: flex; align-items: center; padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .record-item:last-child { border-bottom: none; }
+        .record-avatar {
+            width: 42px; height: 42px; border-radius: 50%;
+            background: var(--primary); color: white;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; font-weight: 600; margin-right: 12px;
+            flex-shrink: 0;
+        }
+        .record-info { flex: 1; }
+        .record-name { font-size: 15px; font-weight: 500; }
+        .record-detail { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+        .record-time { font-size: 13px; color: var(--text-light); text-align: right; }
+        .record-status {
+            display: inline-block; padding: 2px 8px;
+            border-radius: 10px; font-size: 11px; font-weight: 500;
+        }
+        .status-normal { background: #e8f5e9; color: #2e7d32; }
+        .status-late { background: #fff3e0; color: #e65100; }
+        .status-early { background: #e3f2fd; color: #1565c0; }
+
+        /* Search Bar */
+        .search-bar {
+            display: flex; gap: 8px; margin-bottom: 16px;
+        }
+        .search-bar input {
+            flex: 1; height: 40px; border: 1px solid var(--border);
+            border-radius: 10px; padding: 0 14px; font-size: 14px;
+        }
+        .search-bar input:focus { outline: none; border-color: var(--primary); }
+        .search-btn {
+            height: 40px; padding: 0 16px; border: none;
+            border-radius: 10px; background: var(--primary);
+            color: white; font-size: 14px; cursor: pointer;
+        }
+
+        /* Person Item */
+        .person-item {
+            display: flex; align-items: center; padding: 14px 0;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+        }
+        .person-item:last-child { border-bottom: none; }
+        .person-avatar {
+            width: 46px; height: 46px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: white; display: flex; align-items: center;
+            justify-content: center; font-size: 18px; font-weight: 600;
+            margin-right: 12px; flex-shrink: 0;
+        }
+        .person-info { flex: 1; }
+        .person-name { font-size: 15px; font-weight: 500; }
+        .person-meta { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+        .person-actions { display: flex; gap: 8px; }
+        .action-btn {
+            width: 34px; height: 34px; border: none; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 16px;
+        }
+        .btn-edit { background: #e3f2fd; color: #1565c0; }
+        .btn-delete { background: #ffebee; color: #c62828; }
+
+        /* Monitor */
+        .monitor-view {
+            background: #000; border-radius: 12px;
+            aspect-ratio: 16/9; overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+            color: #666; font-size: 14px; position: relative;
+        }
+        .monitor-view img { width: 100%; height: 100%; object-fit: cover; }
+        .monitor-status {
+            position: absolute; top: 10px; left: 10px;
+            padding: 4px 10px; border-radius: 6px;
+            font-size: 12px; font-weight: 500;
+        }
+        .status-online { background: rgba(0,200,83,0.9); color: white; }
+        .status-offline { background: rgba(255,23,68,0.9); color: white; }
+
+        /* Settings Form */
+        .setting-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 0; border-bottom: 1px solid var(--border);
+        }
+        .setting-item:last-child { border-bottom: none; }
+        .setting-label { font-size: 14px; }
+        .setting-desc { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+        .setting-input {
+            width: 100px; height: 36px; border: 1px solid var(--border);
+            border-radius: 8px; text-align: center; font-size: 14px;
+        }
+        .setting-input:focus { outline: none; border-color: var(--primary); }
+        select.setting-input {
+            width: 120px; appearance: auto;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 200;
+            align-items: flex-end; justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: white; border-radius: 16px 16px 0 0;
+            width: 100%; max-width: 500px; max-height: 85vh;
+            overflow-y: auto; padding: 20px;
+            animation: slideUp 0.3s;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .modal-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .modal-header h2 { font-size: 18px; }
+        .modal-close {
+            width: 32px; height: 32px; border: none; border-radius: 50%;
+            background: var(--bg); font-size: 18px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .modal .form-group { margin-bottom: 16px; }
+        .modal .form-group label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--text-light); }
+        .modal .form-group input, .modal .form-group select, .modal .form-group textarea {
+            width: 100%; height: 42px; border: 1px solid var(--border);
+            border-radius: 8px; padding: 0 12px; font-size: 14px;
+        }
+        .modal .form-group textarea { height: 80px; padding: 10px 12px; resize: none; }
+        .modal .btn { margin-top: 10px; }
+
+        /* Floating Action Button */
+        .fab {
+            position: fixed; bottom: 80px; right: 20px;
+            width: 56px; height: 56px; border-radius: 50%;
+            background: var(--primary); color: white; border: none;
+            font-size: 28px; cursor: pointer;
+            box-shadow: 0 4px 16px rgba(0,102,255,0.4);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 90;
+        }
+        .fab:active { transform: scale(0.95); }
+
+        /* Date Filter */
+        .date-filter {
+            display: flex; gap: 8px; margin-bottom: 12px; align-items: center;
+        }
+        .date-filter input[type="date"] {
+            height: 36px; border: 1px solid var(--border);
+            border-radius: 8px; padding: 0 10px; font-size: 13px;
+            flex: 1;
+        }
+        .date-filter input[type="date"]:focus { outline: none; border-color: var(--primary); }
+
+        /* Export Button */
+        .export-bar {
+            display: flex; gap: 8px; margin-bottom: 12px;
+        }
+        .export-btn {
+            flex: 1; height: 38px; border: 1px solid var(--primary);
+            border-radius: 8px; background: white; color: var(--primary);
+            font-size: 13px; cursor: pointer; font-weight: 500;
+        }
+        .export-btn:active { background: var(--primary); color: white; }
+
+        /* Chart placeholder */
+        .chart-container {
+            background: var(--card); border-radius: 12px;
+            padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow);
+        }
+        .chart-bar {
+            display: flex; align-items: flex-end; gap: 4px;
+            height: 120px; padding-top: 10px;
+        }
+        .chart-bar-item {
+            flex: 1; background: var(--primary); border-radius: 4px 4px 0 0;
+            min-height: 4px; transition: height 0.3s; position: relative;
+        }
+        .chart-bar-item:hover { opacity: 0.8; }
+        .chart-labels {
+            display: flex; gap: 4px; margin-top: 6px;
+        }
+        .chart-labels span {
+            flex: 1; text-align: center; font-size: 10px; color: var(--text-light);
+        }
+
+        /* System Info */
+        .sys-info-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+        }
+        .sys-info-item {
+            background: var(--card); border-radius: 10px;
+            padding: 14px; box-shadow: var(--shadow); text-align: center;
+        }
+        .sys-info-value { font-size: 20px; font-weight: 700; color: var(--primary); }
+        .sys-info-label { font-size: 12px; color: var(--text-light); margin-top: 4px; }
+
+        /* Loading */
+        .loading {
+            text-align: center; padding: 40px; color: var(--text-light);
+        }
+        .spinner {
+            width: 36px; height: 36px; border: 3px solid var(--border);
+            border-top-color: var(--primary); border-radius: 50%;
+            animation: spin 0.8s linear infinite; margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Empty State */
+        .empty { text-align: center; padding: 40px; color: var(--text-light); }
+        .empty .icon { font-size: 48px; margin-bottom: 12px; }
+
+        /* Toast */
+        .toast {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background: #333; color: white; padding: 10px 24px;
+            border-radius: 10px; font-size: 14px; z-index: 300;
+            opacity: 0; transition: opacity 0.3s;
+        }
+        .toast.show { opacity: 1; }
+
+        /* Pagination */
+        .pagination {
+            display: flex; align-items: center; justify-content: center;
+            gap: 8px; margin-top: 16px;
+        }
+        .pagination button {
+            width: 36px; height: 36px; border: 1px solid var(--border);
+            border-radius: 8px; background: white; cursor: pointer;
+            font-size: 14px;
+        }
+        .pagination button.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Confirm Dialog */
+        .confirm-dialog {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 250;
+            align-items: center; justify-content: center; padding: 20px;
+        }
+        .confirm-dialog.active { display: flex; }
+        .confirm-box {
+            background: white; border-radius: 16px; padding: 24px;
+            width: 100%; max-width: 320px; text-align: center;
+        }
+        .confirm-box h3 { margin-bottom: 12px; font-size: 17px; }
+        .confirm-box p { color: var(--text-light); font-size: 14px; margin-bottom: 20px; }
+        .confirm-btns { display: flex; gap: 10px; }
+        .confirm-btns button {
+            flex: 1; height: 42px; border: none; border-radius: 10px;
+            font-size: 15px; cursor: pointer; font-weight: 500;
+        }
+        .confirm-cancel { background: var(--bg); color: var(--text); }
+        .confirm-ok { background: var(--danger); color: white; }
+    </style>
+</head>
+<body>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Confirm Dialog -->
+<div class="confirm-dialog" id="confirmDialog">
+    <div class="confirm-box">
+        <h3 id="confirmTitle">确认</h3>
+        <p id="confirmMsg">确定要执行此操作吗？</p>
+        <div class="confirm-btns">
+            <button class="confirm-cancel" onclick="closeConfirm()">取消</button>
+            <button class="confirm-ok" id="confirmOk">确定</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== Login Page ===== -->
+<div class="login-page" id="loginPage">
+    <div class="login-card">
+        <div class="login-logo">
+            <div class="icon">&#x1F5A5;</div>
+            <h1>人脸识别签到系统</h1>
+            <p>移动端管理平台</p>
+        </div>
+        <div class="form-group">
+            <label>管理密码</label>
+            <input type="password" id="loginPassword" placeholder="请输入管理密码" onkeydown="if(event.key==='Enter')doLogin()">
+        </div>
+        <button class="btn btn-primary" onclick="doLogin()">登 录</button>
+        <div class="login-error" id="loginError"></div>
+        <div class="form-group server-input">
+            <label>服务器地址</label>
+            <input type="text" id="serverAddr" placeholder="http://192.168.1.100:5000">
+        </div>
+    </div>
+</div>
+
+<!-- ===== Main App ===== -->
+<div class="app" id="mainApp">
+    <!-- Header -->
+    <div class="header">
+        <div class="header-top">
+            <h1 id="headerTitle">签到管理</h1>
+            <div style="display:flex;gap:8px;">
+                <button class="header-btn" onclick="refreshCurrentPage()">&#x21bb;</button>
+                <button class="header-btn" onclick="doLogout()">&#x2190;</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Dashboard Page ===== -->
+    <div class="page active" id="pageDashboard">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="statTotal">0</div>
+                <div class="stat-label">总人数</div>
+            </div>
+            <div class="stat-card success">
+                <div class="stat-value" id="statSigned">0</div>
+                <div class="stat-label">已签到</div>
+            </div>
+            <div class="stat-card warning">
+                <div class="stat-value" id="statAbsent">0</div>
+                <div class="stat-label">未签到</div>
+            </div>
+            <div class="stat-card danger">
+                <div class="stat-value" id="statLate">0</div>
+                <div class="stat-label">迟到</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">
+                <span>签到率</span>
+                <span id="rateText" style="color:var(--primary);font-weight:700;">0%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="rateBar" style="width:0%"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">今日签到记录</div>
+            <div id="dashboardRecords">
+                <div class="empty"><div class="icon">&#x1F4CB;</div><p>暂无记录</p></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Records Page ===== -->
+    <div class="page" id="pageRecords">
+        <div class="date-filter">
+            <input type="date" id="recordStartDate">
+            <span style="color:var(--text-light);">至</span>
+            <input type="date" id="recordEndDate">
+            <button class="search-btn" onclick="loadRecords()">查询</button>
+        </div>
+        <div class="export-bar">
+            <button class="export-btn" onclick="exportAttendance()">&#x1F4E5; 导出签到记录</button>
+        </div>
+        <div class="card">
+            <div id="recordsList">
+                <div class="empty"><div class="icon">&#x1F4CB;</div><p>暂无记录</p></div>
+            </div>
+        </div>
+        <div class="pagination" id="recordsPagination"></div>
+    </div>
+
+    <!-- ===== Persons Page ===== -->
+    <div class="page" id="pagePersons">
+        <div class="search-bar">
+            <input type="text" id="personSearch" placeholder="搜索姓名/工号..." onkeydown="if(event.key==='Enter')loadPersons()">
+            <button class="search-btn" onclick="loadPersons()">搜索</button>
+        </div>
+        <div class="export-bar">
+            <button class="export-btn" onclick="exportPersons()">&#x1F4E5; 导出人员列表</button>
+        </div>
+        <div class="card">
+            <div id="personsList">
+                <div class="empty"><div class="icon">&#x1F465;</div><p>暂无人员</p></div>
+            </div>
+        </div>
+        <div class="pagination" id="personsPagination"></div>
+        <button class="fab" onclick="showPersonModal()">+</button>
+    </div>
+
+    <!-- ===== Statistics Page ===== -->
+    <div class="page" id="pageStats">
+        <div class="date-filter">
+            <input type="month" id="statsMonth" onchange="loadMonthlyStats()">
+        </div>
+        <div class="chart-container">
+            <div class="card-title">每日签到人数</div>
+            <div class="chart-bar" id="statsChart"></div>
+            <div class="chart-labels" id="statsLabels"></div>
+        </div>
+        <div class="card">
+            <div class="card-title">部门出勤统计</div>
+            <div id="deptStats">
+                <div class="empty"><div class="icon">&#x1F4CA;</div><p>暂无数据</p></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Monitor Page ===== -->
+    <div class="page" id="pageMonitor">
+        <div class="monitor-view" id="monitorView">
+            <span>摄像头画面</span>
+            <div class="monitor-status status-offline" id="monitorStatus">离线</div>
+        </div>
+        <div class="card" style="margin-top:12px;">
+            <div class="card-title">系统状态</div>
+            <div class="sys-info-grid">
+                <div class="sys-info-item">
+                    <div class="sys-info-value" id="sysFaceCount">0</div>
+                    <div class="sys-info-label">已注册人脸</div>
+                </div>
+                <div class="sys-info-item">
+                    <div class="sys-info-value" id="sysMode">--</div>
+                    <div class="sys-info-label">识别模式</div>
+                </div>
+                <div class="sys-info-item">
+                    <div class="sys-info-value" id="sysCpu">0%</div>
+                    <div class="sys-info-label">CPU使用率</div>
+                </div>
+                <div class="sys-info-item">
+                    <div class="sys-info-value" id="sysMemory">0%</div>
+                    <div class="sys-info-label">内存使用率</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Settings Page ===== -->
+    <div class="page" id="pageSettings">
+        <div class="card">
+            <div class="card-title">签到规则</div>
+            <div class="setting-item">
+                <div>
+                    <div class="setting-label">上班时间</div>
+                    <div class="setting-desc">标准上班打卡时间</div>
+                </div>
+                <input type="time" class="setting-input" id="setWorkStart" value="09:00">
+            </div>
+            <div class="setting-item">
+                <div>
+                    <div class="setting-label">下班时间</div>
+                    <div class="setting-desc">标准下班打卡时间</div>
+                </div>
+                <input type="time" class="setting-input" id="setWorkEnd" value="18:00">
+            </div>
+            <div class="setting-item">
+                <div>
+                    <div class="setting-label">迟到宽限(分钟)</div>
+                    <div class="setting-desc">超过上班时间+宽限视为迟到</div>
+                </div>
+                <input type="number" class="setting-input" id="setLateGrace" value="15" min="0" max="120">
+            </div>
+            <div class="setting-item">
+                <div>
+                    <div class="setting-label">签到模式</div>
+                    <div class="setting-desc">自动识别或手动触发</div>
+                </div>
+                <select class="setting-input" id="setSignMode">
+                    <option value="auto">自动签到</option>
+                    <option value="manual">手动签到</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">识别参数</div>
+            <div class="setting-item">
+                <div>
+                    <div class="setting-label">识别阈值</div>
+                    <div class="setting-desc">越高越严格 (0.1-1.0)</div>
+                </div>
+                <input type="number" class="setting-input" id="setThreshold" value="0.6" step="0.05" min="0.1" max="1.0">
+            </div>
+            <div class="setting-item">
+                <div>
+                    <div class="setting-label">确认帧数</div>
+                    <div class="setting-desc">连续识别N帧才确认签到</div>
+                </div>
+                <input type="number" class="setting-input" id="setConfirmFrames" value="3" min="1" max="10">
+            </div>
+            <div class="setting-item">
+                <div>
+                    <div class="setting-label">冷却时间(秒)</div>
+                    <div class="setting-desc">同一人签到间隔</div>
+                </div>
+                <input type="number" class="setting-input" id="setCooldown" value="60" min="0" max="600">
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">系统</div>
+            <div class="setting-item">
+                <div>
+                    <div class="setting-label">系统名称</div>
+                </div>
+                <input type="text" class="setting-input" id="setSystemName" style="width:140px;">
+            </div>
+            <div class="setting-item">
+                <div>
+                    <div class="setting-label">修改密码</div>
+                </div>
+                <button class="search-btn" onclick="showChangePasswordModal()">修改</button>
+            </div>
+        </div>
+
+        <button class="btn btn-primary" style="margin-top:12px;" onclick="saveSettings()">保存设置</button>
+
+        <div class="card" style="margin-top:16px;">
+            <div class="card-title">操作日志</div>
+            <div id="logsList">
+                <div class="empty"><div class="icon">&#x1F4DC;</div><p>暂无日志</p></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <div class="bottom-nav">
+        <button class="nav-item active" onclick="switchPage('Dashboard')">
+            <div class="nav-icon">&#x1F3E0;</div>
+            <div class="nav-text">首页</div>
+        </button>
+        <button class="nav-item" onclick="switchPage('Records')">
+            <div class="nav-icon">&#x1F4CB;</div>
+            <div class="nav-text">记录</div>
+        </button>
+        <button class="nav-item" onclick="switchPage('Persons')">
+            <div class="nav-icon">&#x1F465;</div>
+            <div class="nav-text">人员</div>
+        </button>
+        <button class="nav-item" onclick="switchPage('Stats')">
+            <div class="nav-icon">&#x1F4CA;</div>
+            <div class="nav-text">统计</div>
+        </button>
+        <button class="nav-item" onclick="switchPage('Monitor')">
+            <div class="nav-icon">&#x1F5A5;</div>
+            <div class="nav-text">监控</div>
+        </button>
+        <button class="nav-item" onclick="switchPage('Settings')">
+            <div class="nav-icon">&#x2699;</div>
+            <div class="nav-text">设置</div>
+        </button>
+    </div>
+</div>
+
+<!-- ===== Person Modal ===== -->
+<div class="modal-overlay" id="personModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 id="personModalTitle">添加人员</h2>
+            <button class="modal-close" onclick="closePersonModal()">&times;</button>
+        </div>
+        <input type="hidden" id="editPersonId">
+        <div class="form-group">
+            <label>姓名 *</label>
+            <input type="text" id="personName" placeholder="请输入姓名">
+        </div>
+        <div class="form-group">
+            <label>工号</label>
+            <input type="text" id="personEmpId" placeholder="请输入工号">
+        </div>
+        <div class="form-group">
+            <label>部门</label>
+            <input type="text" id="personDept" placeholder="请输入部门">
+        </div>
+        <div class="form-group">
+            <label>职位</label>
+            <input type="text" id="personPosition" placeholder="请输入职位">
+        </div>
+        <div class="form-group">
+            <label>电话</label>
+            <input type="tel" id="personPhone" placeholder="请输入电话">
+        </div>
+        <div class="form-group">
+            <label>邮箱</label>
+            <input type="email" id="personEmail" placeholder="请输入邮箱">
+        </div>
+        <div class="form-group">
+            <label>备注</label>
+            <textarea id="personRemark" placeholder="备注信息"></textarea>
+        </div>
+        <button class="btn btn-primary" onclick="savePerson()">保存</button>
+    </div>
+</div>
+
+<!-- ===== Face Upload Modal ===== -->
+<div class="modal-overlay" id="faceModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>上传人脸照片</h2>
+            <button class="modal-close" onclick="closeFaceModal()">&times;</button>
+        </div>
+        <input type="hidden" id="facePersonId">
+        <input type="hidden" id="facePersonName">
+        <div class="form-group">
+            <label>选择正面清晰照片</label>
+            <input type="file" id="faceFile" accept="image/*" style="height:auto;padding:10px;">
+        </div>
+        <div id="facePreview" style="text-align:center;margin:12px 0;">
+            <img id="facePreviewImg" style="max-width:100%;max-height:200px;border-radius:8px;display:none;">
+        </div>
+        <button class="btn btn-primary" onclick="uploadFace()">上传注册</button>
+    </div>
+</div>
+
+<!-- ===== Change Password Modal ===== -->
+<div class="modal-overlay" id="passwordModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>修改密码</h2>
+            <button class="modal-close" onclick="closePasswordModal()">&times;</button>
+        </div>
+        <div class="form-group">
+            <label>原密码</label>
+            <input type="password" id="oldPassword" placeholder="请输入原密码">
+        </div>
+        <div class="form-group">
+            <label>新密码</label>
+            <input type="password" id="newPassword" placeholder="请输入新密码(至少4位)">
+        </div>
+        <div class="form-group">
+            <label>确认新密码</label>
+            <input type="password" id="confirmPassword" placeholder="请再次输入新密码">
+        </div>
+        <button class="btn btn-primary" onclick="changePassword()">确认修改</button>
+    </div>
+</div>
+
+<script>
+// ==================== Global State ====================
+let API_BASE = '';
+let TOKEN = '';
+let currentPage = 'Dashboard';
+let recordsPage = 1;
+let personsPage = 1;
+let monitorTimer = null;
+
+// ==================== API Helper ====================
+async function api(path, options = {}) {
+    const url = API_BASE + path;
+    const headers = { 'Content-Type': 'application/json' };
+    if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
+
+    try {
+        const resp = await fetch(url, { ...options, headers });
+        const data = await resp.json();
+        if (data.code !== 200) {
+            showToast(data.message || '请求失败');
+            if (data.code === 401) doLogout();
+            return null;
+        }
+        return data.data;
+    } catch (e) {
+        showToast('网络错误: ' + e.message);
+        return null;
+    }
+}
+
+async function apiUpload(path, formData) {
+    const url = API_BASE + path;
+    const headers = {};
+    if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
+
+    try {
+        const resp = await fetch(url, { method: 'POST', headers, body: formData });
+        const data = await resp.json();
+        if (data.code !== 200) {
+            showToast(data.message || '上传失败');
+            return null;
+        }
+        return data.data;
+    } catch (e) {
+        showToast('网络错误: ' + e.message);
+        return null;
+    }
+}
+
+// ==================== Toast ====================
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ==================== Confirm ====================
+let confirmCallback = null;
+function showConfirm(title, msg, callback) {
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMsg').textContent = msg;
+    document.getElementById('confirmDialog').classList.add('active');
+    confirmCallback = callback;
+    document.getElementById('confirmOk').onclick = () => {
+        closeConfirm();
+        if (confirmCallback) confirmCallback();
+    };
+}
+function closeConfirm() {
+    document.getElementById('confirmDialog').classList.remove('active');
+}
+
+// ==================== Auth ====================
+function doLogin() {
+    const password = document.getElementById('loginPassword').value;
+    const server = document.getElementById('serverAddr').value.trim();
+
+    if (!password) { showToast('请输入密码'); return; }
+
+    API_BASE = server || window.location.origin;
+    TOKEN = '';
+
+    fetch(API_BASE + '/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.code === 200) {
+            TOKEN = data.data.token;
+            localStorage.setItem('token', TOKEN);
+            localStorage.setItem('server', API_BASE);
+            document.getElementById('loginPage').style.display = 'none';
+            document.getElementById('mainApp').style.display = 'block';
+            if (data.data.system_name) {
+                document.getElementById('headerTitle').textContent = data.data.system_name;
+            }
+            initApp();
+        } else {
+            document.getElementById('loginError').textContent = data.message;
+            document.getElementById('loginError').style.display = 'block';
+        }
+    })
+    .catch(e => {
+        showToast('连接失败: ' + e.message);
+    });
+}
+
+function doLogout() {
+    TOKEN = '';
+    localStorage.removeItem('token');
+    document.getElementById('loginPage').style.display = 'flex';
+    document.getElementById('mainApp').style.display = 'none';
+    if (monitorTimer) clearInterval(monitorTimer);
+}
+
+// Auto login
+(function() {
+    const saved = localStorage.getItem('token');
+    const server = localStorage.getItem('server');
+    if (saved) {
+        TOKEN = saved;
+        API_BASE = server || window.location.origin;
+        document.getElementById('serverAddr').value = API_BASE;
+        document.getElementById('loginPage').style.display = 'none';
+        document.getElementById('mainApp').style.display = 'block';
+        initApp();
+    } else {
+        // Try current origin
+        document.getElementById('serverAddr').value = window.location.origin;
+    }
+})();
+
+// ==================== Navigation ====================
+function switchPage(name) {
+    currentPage = name;
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page' + name).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+
+    // Load data for page
+    switch(name) {
+        case 'Dashboard': loadDashboard(); break;
+        case 'Records': loadRecords(); break;
+        case 'Persons': loadPersons(); break;
+        case 'Stats': loadMonthlyStats(); loadDeptStats(); break;
+        case 'Monitor': startMonitor(); break;
+        case 'Settings': loadSettings(); loadLogs(); break;
+    }
+}
+
+function refreshCurrentPage() {
+    switch(currentPage) {
+        case 'Dashboard': loadDashboard(); break;
+        case 'Records': loadRecords(); break;
+        case 'Persons': loadPersons(); break;
+        case 'Stats': loadMonthlyStats(); loadDeptStats(); break;
+        case 'Monitor': loadMonitorSnapshot(); break;
+        case 'Settings': loadSettings(); loadLogs(); break;
+    }
+}
+
+// ==================== Dashboard ====================
+function loadDashboard() {
+    api('/api/statistics/today').then(data => {
+        if (!data) return;
+        document.getElementById('statTotal').textContent = data.total_persons;
+        document.getElementById('statSigned').textContent = data.signed_in;
+        document.getElementById('statAbsent').textContent = data.absent;
+        document.getElementById('statLate').textContent = data.late_count;
+        document.getElementById('rateText').textContent = data.sign_rate + '%';
+        document.getElementById('rateBar').style.width = data.sign_rate + '%';
+    });
+
+    api('/api/attendance/today').then(data => {
+        if (!data) return;
+        const container = document.getElementById('dashboardRecords');
+        if (!data.records || data.records.length === 0) {
+            container.innerHTML = '<div class="empty"><div class="icon">&#x1F4CB;</div><p>暂无记录</p></div>';
+            return;
+        }
+        container.innerHTML = data.records.slice(0, 10).map(r => {
+            const typeText = r.sign_type === 'in' ? '签到' : '签退';
+            const statusClass = 'status-normal';
+            const time = r.sign_time ? r.sign_time.split(' ')[1] : '';
+            const initial = (r.name || '?')[0];
+            return `<div class="record-item">
+                <div class="record-avatar">${initial}</div>
+                <div class="record-info">
+                    <div class="record-name">${r.name} <span class="record-status ${statusClass}">${typeText}</span></div>
+                    <div class="record-detail">${r.department || ''} ${r.employee_id ? '| ' + r.employee_id : ''}</div>
+                </div>
+                <div class="record-time">${time}</div>
+            </div>`;
+        }).join('');
+    });
+}
+
+// ==================== Records ====================
+function loadRecords() {
+    const start = document.getElementById('recordStartDate').value || new Date().toISOString().split('T')[0];
+    const end = document.getElementById('recordEndDate').value || start;
+
+    api(`/api/attendance?start_date=${start}&end_date=${end}&page=${recordsPage}&per_page=20`).then(data => {
+        if (!data) return;
+        const container = document.getElementById('recordsList');
+        if (!data.records || data.records.length === 0) {
+            container.innerHTML = '<div class="empty"><div class="icon">&#x1F4CB;</div><p>暂无记录</p></div>';
+            document.getElementById('recordsPagination').innerHTML = '';
+            return;
+        }
+        container.innerHTML = data.records.map(r => {
+            const typeText = r.sign_type === 'in' ? '签到' : '签退';
+            const time = r.sign_time ? r.sign_time.split(' ')[1] : '';
+            const initial = (r.name || '?')[0];
+            return `<div class="record-item">
+                <div class="record-avatar">${initial}</div>
+                <div class="record-info">
+                    <div class="record-name">${r.name} <span class="record-status status-normal">${typeText}</span></div>
+                    <div class="record-detail">${r.department || ''} ${r.employee_id ? '| ' + r.employee_id : ''}</div>
+                </div>
+                <div class="record-time">${r.sign_time || ''}</div>
+            </div>`;
+        }).join('');
+
+        // Pagination
+        const totalPages = Math.ceil(data.total / 20);
+        renderPagination('recordsPagination', recordsPage, totalPages, (p) => { recordsPage = p; loadRecords(); });
+    });
+}
+
+function exportAttendance() {
+    const start = document.getElementById('recordStartDate').value || new Date().toISOString().split('T')[0];
+    const end = document.getElementById('recordEndDate').value || start;
+    window.open(API_BASE + `/api/export/attendance?start_date=${start}&end_date=${end}`, '_blank');
+}
+
+// ==================== Persons ====================
+function loadPersons() {
+    const search = document.getElementById('personSearch').value;
+    api(`/api/persons?search=${encodeURIComponent(search)}&page=${personsPage}&per_page=20&include_inactive=1`).then(data => {
+        if (!data) return;
+        const container = document.getElementById('personsList');
+        if (!data.persons || data.persons.length === 0) {
+            container.innerHTML = '<div class="empty"><div class="icon">&#x1F465;</div><p>暂无人员</p></div>';
+            document.getElementById('personsPagination').innerHTML = '';
+            return;
+        }
+        container.innerHTML = data.persons.map(p => {
+            const initial = (p.name || '?')[0];
+            const statusText = p.status == 1 ? '启用' : '禁用';
+            const statusColor = p.status == 1 ? 'var(--success)' : 'var(--danger)';
+            return `<div class="person-item" onclick="showPersonModal(${p.id})">
+                <div class="person-avatar">${initial}</div>
+                <div class="person-info">
+                    <div class="person-name">${p.name} <span style="font-size:12px;color:${statusColor};">[${statusText}]</span></div>
+                    <div class="person-meta">${p.department || '未设置部门'} ${p.employee_id ? '| ' + p.employee_id : ''}</div>
+                </div>
+                <div class="person-actions">
+                    <button class="action-btn btn-edit" onclick="event.stopPropagation();showFaceUpload(${p.id},'${p.name}')" title="上传人脸">&#x1F4F7;</button>
+                    <button class="action-btn btn-delete" onclick="event.stopPropagation();deletePerson(${p.id},'${p.name}')" title="删除">&#x1F5D1;</button>
+                </div>
+            </div>`;
+        }).join('');
+
+        const totalPages = Math.ceil(data.total / 20);
+        renderPagination('personsPagination', personsPage, totalPages, (p) => { personsPage = p; loadPersons(); });
+    });
+}
+
+function showPersonModal(id) {
+    document.getElementById('personModal').classList.add('active');
+    if (id) {
+        document.getElementById('personModalTitle').textContent = '编辑人员';
+        document.getElementById('editPersonId').value = id;
+        api('/api/persons/' + id).then(data => {
+            if (!data) return;
+            document.getElementById('personName').value = data.name || '';
+            document.getElementById('personEmpId').value = data.employee_id || '';
+            document.getElementById('personDept').value = data.department || '';
+            document.getElementById('personPosition').value = data.position || '';
+            document.getElementById('personPhone').value = data.phone || '';
+            document.getElementById('personEmail').value = data.email || '';
+            document.getElementById('personRemark').value = data.remark || '';
+        });
+    } else {
+        document.getElementById('personModalTitle').textContent = '添加人员';
+        document.getElementById('editPersonId').value = '';
+        ['personName','personEmpId','personDept','personPosition','personPhone','personEmail','personRemark'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+    }
+}
+
+function closePersonModal() {
+    document.getElementById('personModal').classList.remove('active');
+}
+
+function savePerson() {
+    const id = document.getElementById('editPersonId').value;
+    const body = {
+        name: document.getElementById('personName').value.trim(),
+        employee_id: document.getElementById('personEmpId').value.trim(),
+        department: document.getElementById('personDept').value.trim(),
+        position: document.getElementById('personPosition').value.trim(),
+        phone: document.getElementById('personPhone').value.trim(),
+        email: document.getElementById('personEmail').value.trim(),
+        remark: document.getElementById('personRemark').value.trim(),
+    };
+
+    if (!body.name) { showToast('姓名不能为空'); return; }
+
+    if (id) {
+        api('/api/persons/' + id, { method: 'PUT', body: JSON.stringify(body) }).then(data => {
+            if (data) { showToast('更新成功'); closePersonModal(); loadPersons(); }
+        });
+    } else {
+        api('/api/persons', { method: 'POST', body: JSON.stringify(body) }).then(data => {
+            if (data) { showToast('添加成功'); closePersonModal(); loadPersons(); }
+        });
+    }
+}
+
+function deletePerson(id, name) {
+    showConfirm('删除人员', `确定要删除 ${name} 吗？`, () => {
+        api('/api/persons/' + id, { method: 'DELETE' }).then(data => {
+            if (data) { showToast('删除成功'); loadPersons(); }
+        });
+    });
+}
+
+function exportPersons() {
+    window.open(API_BASE + '/api/export/persons', '_blank');
+}
+
+// ==================== Face Upload ====================
+function showFaceUpload(id, name) {
+    document.getElementById('facePersonId').value = id;
+    document.getElementById('facePersonName').value = name;
+    document.getElementById('faceFile').value = '';
+    document.getElementById('facePreviewImg').style.display = 'none';
+    document.getElementById('faceModal').classList.add('active');
+}
+
+function closeFaceModal() {
+    document.getElementById('faceModal').classList.remove('active');
+}
+
+document.addEventListener('change', function(e) {
+    if (e.target.id === 'faceFile' && e.target.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+            const img = document.getElementById('facePreviewImg');
+            img.src = ev.target.result;
+            img.style.display = 'block';
+        };
+        reader.readAsDataURL(e.target.files[0]);
+    }
+});
+
+function uploadFace() {
+    const id = document.getElementById('facePersonId').value;
+    const file = document.getElementById('faceFile').files[0];
+    if (!file) { showToast('请选择照片'); return; }
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    apiUpload('/api/persons/' + id + '/face', formData).then(data => {
+        if (data) { showToast('人脸注册成功'); closeFaceModal(); }
+    });
+}
+
+// ==================== Statistics ====================
+function loadMonthlyStats() {
+    const monthInput = document.getElementById('statsMonth').value;
+    let year, month;
+    if (monthInput) {
+        [year, month] = monthInput.split('-').map(Number);
+    } else {
+        const now = new Date();
+        year = now.getFullYear();
+        month = now.getMonth() + 1;
+        document.getElementById('statsMonth').value = `${year}-${String(month).padStart(2, '0')}`;
+    }
+
+    api(`/api/statistics/monthly?year=${year}&month=${month}`).then(data => {
+        if (!data || !data.daily_stats) return;
+
+        const chart = document.getElementById('statsChart');
+        const labels = document.getElementById('statsLabels');
+
+        if (data.daily_stats.length === 0) {
+            chart.innerHTML = '<div class="empty" style="width:100%;"><p>暂无数据</p></div>';
+            labels.innerHTML = '';
+            return;
+        }
+
+        const maxVal = Math.max(...data.daily_stats.map(d => d.sign_in_count), 1);
+        chart.innerHTML = data.daily_stats.map(d => {
+            const height = Math.max(4, (d.sign_in_count / maxVal) * 100);
+            const day = d.day.split('-')[2];
+            return `<div class="chart-bar-item" style="height:${height}%" title="${d.day}: ${d.sign_in_count}人"></div>`;
+        }).join('');
+
+        labels.innerHTML = data.daily_stats.map(d => {
+            const day = d.day.split('-')[2];
+            return `<span>${day}</span>`;
+        }).join('');
+    });
+}
+
+function loadDeptStats() {
+    api('/api/statistics/departments').then(data => {
+        if (!data || !data.departments || data.departments.length === 0) {
+            document.getElementById('deptStats').innerHTML = '<div class="empty"><div class="icon">&#x1F4CA;</div><p>暂无数据</p></div>';
+            return;
+        }
+        document.getElementById('deptStats').innerHTML = data.departments.map(d => `
+            <div class="record-item">
+                <div class="record-info">
+                    <div class="record-name">${d.department}</div>
+                    <div class="record-detail">签到 ${d.signed}/${d.total}人</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:18px;font-weight:700;color:${d.rate >= 90 ? 'var(--success)' : d.rate >= 70 ? 'var(--warning)' : 'var(--danger)'};">${d.rate}%</div>
+                    <div class="progress-bar" style="width:80px;margin-top:4px;">
+                        <div class="progress-fill" style="width:${d.rate}%;background:${d.rate >= 90 ? 'var(--success)' : d.rate >= 70 ? 'var(--warning)' : 'var(--danger)'};"></div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    });
+}
+
+// ==================== Monitor ====================
+function startMonitor() {
+    loadMonitorSnapshot();
+    loadSystemStatus();
+    if (monitorTimer) clearInterval(monitorTimer);
+    monitorTimer = setInterval(() => {
+        loadMonitorSnapshot();
+        loadSystemStatus();
+    }, 2000);
+}
+
+function loadMonitorSnapshot() {
+    api('/api/monitor/snapshot').then(data => {
+        const view = document.getElementById('monitorView');
+        const status = document.getElementById('monitorStatus');
+        if (data && data.image) {
+            view.innerHTML = `<img src="${data.image}"><div class="monitor-status status-online">在线</div>`;
+        } else {
+            view.innerHTML = '<span>摄像头画面</span><div class="monitor-status status-offline">离线</div>';
+        }
+    });
+}
+
+function loadSystemStatus() {
+    api('/api/monitor/status').then(data => {
+        if (!data) return;
+        document.getElementById('sysFaceCount').textContent = data.face_count || 0;
+        document.getElementById('sysMode').textContent = data.recognition_mode || '--';
+        document.getElementById('sysCpu').textContent = (data.cpu_usage || 0) + '%';
+        document.getElementById('sysMemory').textContent = (data.memory_usage || 0) + '%';
+    });
+}
+
+// ==================== Settings ====================
+function loadSettings() {
+    api('/api/settings').then(data => {
+        if (!data) return;
+        document.getElementById('setWorkStart').value = data.work_start || '09:00';
+        document.getElementById('setWorkEnd').value = data.work_end || '18:00';
+        document.getElementById('setLateGrace').value = data.late_grace || '15';
+        document.getElementById('setSignMode').value = data.sign_mode || 'auto';
+        document.getElementById('setThreshold').value = data.recognition_threshold || '0.6';
+        document.getElementById('setConfirmFrames').value = data.confirm_frames || '3';
+        document.getElementById('setCooldown').value = data.sign_cooldown || '60';
+        document.getElementById('setSystemName').value = data.system_name || '';
+    });
+}
+
+function saveSettings() {
+    const body = {
+        work_start: document.getElementById('setWorkStart').value,
+        work_end: document.getElementById('setWorkEnd').value,
+        late_grace: document.getElementById('setLateGrace').value,
+        sign_mode: document.getElementById('setSignMode').value,
+        recognition_threshold: document.getElementById('setThreshold').value,
+        confirm_frames: document.getElementById('setConfirmFrames').value,
+        sign_cooldown: document.getElementById('setCooldown').value,
+        system_name: document.getElementById('setSystemName').value,
+    };
+    api('/api/settings', { method: 'PUT', body: JSON.stringify(body) }).then(data => {
+        if (data) showToast('设置已保存');
+    });
+}
+
+function loadLogs() {
+    api('/api/logs?per_page=20').then(data => {
+        if (!data || !data.logs || data.logs.length === 0) {
+            document.getElementById('logsList').innerHTML = '<div class="empty"><div class="icon">&#x1F4DC;</div><p>暂无日志</p></div>';
+            return;
+        }
+        document.getElementById('logsList').innerHTML = data.logs.map(l => `
+            <div class="record-item" style="padding:8px 0;">
+                <div class="record-info">
+                    <div class="record-name" style="font-size:13px;">${l.action}</div>
+                    <div class="record-detail">${l.detail || ''} | ${l.ip_address || ''}</div>
+                </div>
+                <div class="record-time" style="font-size:11px;">${l.created_at || ''}</div>
+            </div>
+        `).join('');
+    });
+}
+
+// ==================== Change Password ====================
+function showChangePasswordModal() {
+    document.getElementById('oldPassword').value = '';
+    document.getElementById('newPassword').value = '';
+    document.getElementById('confirmPassword').value = '';
+    document.getElementById('passwordModal').classList.add('active');
+}
+function closePasswordModal() {
+    document.getElementById('passwordModal').classList.remove('active');
+}
+function changePassword() {
+    const old = document.getElementById('oldPassword').value;
+    const newP = document.getElementById('newPassword').value;
+    const confirm = document.getElementById('confirmPassword').value;
+    if (!old || !newP) { showToast('请填写完整'); return; }
+    if (newP.length < 4) { showToast('新密码至少4位'); return; }
+    if (newP !== confirm) { showToast('两次密码不一致'); return; }
+    api('/api/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ old_password: old, new_password: newP })
+    }).then(data => {
+        if (data) { showToast('密码修改成功'); closePasswordModal(); }
+    });
+}
+
+// ==================== Pagination ====================
+function renderPagination(containerId, current, total, callback) {
+    const container = document.getElementById(containerId);
+    if (total <= 1) { container.innerHTML = ''; return; }
+
+    let html = `<button ${current <= 1 ? 'disabled' : ''} onclick="(${callback.toString()})(${current - 1})">&lt;</button>`;
+
+    for (let i = 1; i <= total; i++) {
+        if (i === 1 || i === total || (i >= current - 1 && i <= current + 1)) {
+            html += `<button class="${i === current ? 'active' : ''}" onclick="(${callback.toString()})(${i})">${i}</button>`;
+        } else if (i === current - 2 || i === current + 2) {
+            html += '<button disabled>...</button>';
+        }
+    }
+
+    html += `<button ${current >= total ? 'disabled' : ''} onclick="(${callback.toString()})(${current + 1})">&gt;</button>`;
+    container.innerHTML = html;
+}
+
+// ==================== Init ====================
+function initApp() {
+    // Set default dates
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('recordStartDate').value = today;
+    document.getElementById('recordEndDate').value = today;
+
+    const now = new Date();
+    document.getElementById('statsMonth').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    loadDashboard();
+}
+</script>
+</body>
+</html>
