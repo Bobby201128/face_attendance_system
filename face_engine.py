@@ -664,7 +664,13 @@ class CameraManager:
             if camera_index is not None:
                 self.camera_index = camera_index
 
-            self.cap = cv2.VideoCapture(self.camera_index)
+            # Windows 下使用 DirectShow 后端，启动速度比默认 MSMF 快很多
+            self.cap = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)
+
+            if not self.cap.isOpened():
+                # DirectShow 不可用时回退到默认后端
+                logger.warning(f"DirectShow 不可用，回退到默认后端")
+                self.cap = cv2.VideoCapture(self.camera_index)
 
             if not self.cap.isOpened():
                 logger.error(f"无法打开摄像头 {self.camera_index}")
@@ -710,7 +716,7 @@ class CameraManager:
         """列出可用摄像头"""
         available = []
         for i in range(max_test):
-            cap = cv2.VideoCapture(i)
+            cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
             if cap.isOpened():
                 available.append(i)
                 cap.release()
