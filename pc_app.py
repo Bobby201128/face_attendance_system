@@ -24,7 +24,9 @@ from PyQt5.QtWidgets import (
     QGridLayout, QSizePolicy, QAbstractItemView
 )
 from PyQt5.QtCore import Qt, QTimer, QThread, pyqtSignal, QSize, QDate, QTime
-from PyQt5.QtGui import QImage, QPixmap, QFont, QColor, QIcon, QPalette
+from PyQt5.QtGui import QImage, QPixmap, QFont, QColor, QIcon, QPalette, QPainter
+from PyQt5.QtCore import QByteArray
+from PyQt5.QtSvg import QSvgRenderer
 
 import config
 from database import db
@@ -320,8 +322,6 @@ class MainWindow(QMainWindow):
 
         # 状态
         self.is_running = False
-        self.sign_mode = "auto"  # auto / manual
-        self.current_sign_type = "in"  # in / out
         self.last_signed_id = None
         self.last_signed_time = 0
         
@@ -345,6 +345,16 @@ class MainWindow(QMainWindow):
         self.records_timer = QTimer()
         self.records_timer.timeout.connect(self._refresh_records)
         self.records_timer.start(3000)
+
+        # 控制台状态检测
+        self.console_timer = QTimer()
+        self.console_timer.timeout.connect(self._check_console_status)
+        self.console_timer.start(5000)
+
+        # 摄像头开关轮询（移动端控制）
+        self.camera_poll_timer = QTimer()
+        self.camera_poll_timer.timeout.connect(self._check_camera_toggle)
+        self.camera_poll_timer.start(2000)
 
         # 初始刷新
         self._update_clock()
@@ -381,6 +391,36 @@ class MainWindow(QMainWindow):
 
         top_bar.addStretch()
 
+        # 网络信息
+        self.network_label = QLabel("检测中...")
+        self.network_label.setObjectName("networkLabel")
+        self.network_label.setStyleSheet("""
+            QLabel {
+                color: #4CAF50;
+                font-size: 12px;
+                padding: 5px 10px;
+                background: rgba(76, 175, 80, 0.1);
+                border-radius: 4px;
+            }
+        """)
+        top_bar.addWidget(self.network_label)
+
+        top_bar.addSpacing(20)
+
+        # 当前环境
+        self.env_label = QLabel("")
+        self.env_label.setObjectName("envLabel")
+        self.env_label.setStyleSheet("""
+            QLabel {
+                color: #2196F3;
+                font-size: 12px;
+                padding: 5px 10px;
+                background: rgba(33, 150, 243, 0.1);
+                border-radius: 4px;
+            }
+        """)
+        top_bar.addWidget(self.env_label)
+
         self.date_label = QLabel()
         self.date_label.setObjectName("dateLabel")
         top_bar.addWidget(self.date_label)
@@ -416,19 +456,7 @@ class MainWindow(QMainWindow):
         self.btn_start.clicked.connect(self._toggle_camera)
         control_bar.addWidget(self.btn_start)
 
-        self.btn_mode = QPushButton("自动签到")
-        self.btn_mode.setMinimumHeight(45)
-        self.btn_mode.clicked.connect(self._toggle_mode)
-        control_bar.addWidget(self.btn_mode)
-
-        self.btn_sign_type = QPushButton("签到")
-        self.btn_sign_type.setObjectName("successBtn")
-        self.btn_sign_type.setMinimumHeight(45)
-        self.btn_sign_type.clicked.connect(self._toggle_sign_type)
-        self.btn_sign_type.setEnabled(False)
-        control_bar.addWidget(self.btn_sign_type)
-
-        self.btn_fullscreen = QPushButton("全屏/退出")
+        self.btn_fullscreen = QPushButton("退出全屏")
         self.btn_fullscreen.setMinimumHeight(45)
         self.btn_fullscreen.clicked.connect(self._toggle_fullscreen)
         control_bar.addWidget(self.btn_fullscreen)
@@ -459,12 +487,10 @@ class MainWindow(QMainWindow):
         self.stat_total = self._create_stat_card("总人数", "0")
         self.stat_signed = self._create_stat_card("已签到", "0")
         self.stat_absent = self._create_stat_card("未签到", "0")
-        self.stat_late = self._create_stat_card("迟到", "0")
 
         stats_grid.addWidget(self.stat_total['widget'], 0, 0)
         stats_grid.addWidget(self.stat_signed['widget'], 0, 1)
         stats_grid.addWidget(self.stat_absent['widget'], 1, 0)
-        stats_grid.addWidget(self.stat_late['widget'], 1, 1)
 
         stats_layout.addLayout(stats_grid)
 
@@ -479,18 +505,64 @@ class MainWindow(QMainWindow):
         rate_layout.addWidget(self.rate_bar)
         stats_layout.addWidget(rate_group)
 
-        # 系统信息
-        info_group = QGroupBox("系统信息")
-        info_layout = QFormLayout(info_group)
-        self.lbl_face_count = QLabel("0")
-        self.lbl_mode = QLabel("均衡模式")
-        self.lbl_threshold = QLabel(f"{config.RECOGNITION_THRESHOLD:.1%}")
-        self.lbl_api_addr = QLabel(f"http://{config.API_HOST}:{config.API_PORT}")
-        info_layout.addRow("已注册人脸:", self.lbl_face_count)
-        info_layout.addRow("识别模式:", self.lbl_mode)
-        info_layout.addRow("识别阈值:", self.lbl_threshold)
-        info_layout.addRow("手机访问:", self.lbl_api_addr)
-        stats_layout.addWidget(info_group)
+        # 手机扫码连接二维码
+        qr_group = QGroupBox("手机扫码连接")
+        qr_layout = QVBoxLayout(qr_group)
+        qr_layout.setAlignment(Qt.AlignCenter)
+
+        # 二维码显示容器
+        self.qr_container = QWidget()
+        qr_container_layout = QVBoxLayout(self.qr_container)
+        qr_container_layout.setAlignment(Qt.AlignCenter)
+        qr_container_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.qr_label = QLabel("生成中...")
+        self.qr_label.setFixedSize(180, 180)
+        self.qr_label.setAlignment(Qt.AlignCenter)
+        self.qr_label.setStyleSheet("background: white; border-radius: 8px; padding: 5px;")
+        qr_container_layout.addWidget(self.qr_label, alignment=Qt.AlignCenter)
+
+        self.qr_hint = QLabel("用手机浏览器扫码即可连接")
+        self.qr_hint.setAlignment(Qt.AlignCenter)
+        self.qr_hint.setStyleSheet("color: #888; font-size: 11px;")
+        qr_container_layout.addWidget(self.qr_hint)
+
+        # 已连接状态显示
+        self.connected_container = QWidget()
+        connected_layout = QVBoxLayout(self.connected_container)
+        connected_layout.setAlignment(Qt.AlignCenter)
+        connected_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.connected_icon = QLabel()
+        self.connected_icon.setAlignment(Qt.AlignCenter)
+        self.connected_icon.setFixedSize(64, 64)
+        phone_svg = '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12" y2="18.01"/></svg>'
+        renderer = QSvgRenderer()
+        renderer.load(QByteArray(phone_svg.encode('utf-8')))
+        pixmap = QPixmap(64, 64)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        renderer.render(painter)
+        painter.end()
+        self.connected_icon.setPixmap(pixmap)
+        connected_layout.addWidget(self.connected_icon)
+
+        self.connected_label = QLabel("已连接移动端")
+        self.connected_label.setAlignment(Qt.AlignCenter)
+        self.connected_label.setStyleSheet("color: #4CAF50; font-size: 16px; font-weight: bold;")
+        connected_layout.addWidget(self.connected_label)
+
+        self.connected_hint = QLabel("手机端正在控制中")
+        self.connected_hint.setAlignment(Qt.AlignCenter)
+        self.connected_hint.setStyleSheet("color: #888; font-size: 11px;")
+        connected_layout.addWidget(self.connected_hint)
+
+        self.connected_container.hide()
+
+        qr_layout.addWidget(self.qr_container)
+        qr_layout.addWidget(self.connected_container)
+
+        stats_layout.addWidget(qr_group)
 
         stats_layout.addStretch()
         self.tabs.addTab(stats_page, "统计")
@@ -500,8 +572,8 @@ class MainWindow(QMainWindow):
         records_layout = QVBoxLayout(records_page)
 
         self.records_table = QTableWidget()
-        self.records_table.setColumnCount(5)
-        self.records_table.setHorizontalHeaderLabels(["姓名", "工号", "类型", "时间", "状态"])
+        self.records_table.setColumnCount(4)
+        self.records_table.setHorizontalHeaderLabels(["姓名", "手机号", "次数", "类型", "时间"])
         self.records_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.records_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.records_table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -587,7 +659,6 @@ class MainWindow(QMainWindow):
         self.btn_start.setText("停止摄像头")
         self.btn_start.setObjectName("dangerBtn")
         self.btn_start.setStyleSheet(self.btn_start.styleSheet())
-        self.btn_sign_type.setEnabled(True)
 
         logger.info(f"摄像头已启动（分离式架构），识别线程已绑定到正确的引擎实例")
 
@@ -602,10 +673,17 @@ class MainWindow(QMainWindow):
             self.recognition_thread = None
 
         self.camera.close()
+
+        # 更新API状态
+        try:
+            from api_server import app as flask_app
+            flask_app._camera_running = False
+            flask_app._camera_snapshot = None
+        except:
+            pass
         self.is_running = False
         self.btn_start.setText("启动摄像头")
         self.btn_start.setObjectName("primaryBtn")
-        self.btn_sign_type.setEnabled(False)
 
         self.camera_label.clear()
         self.camera_label.setText("摄像头已停止")
@@ -648,22 +726,21 @@ class MainWindow(QMainWindow):
         """识别结果回调 - 由识别线程调用"""
         if not results:
             return
-            
+
         with self.results_lock:
             self.latest_results = results
 
-        # 调试日志：显示识别到的所有人脸
-        for result in results:
-            name = result.get('name', 'Unknown')
-            confidence = result.get('confidence', 0)
-            matched = result.get('matched', False)
-            
-            if name != 'Unknown' and matched:
-                logger.debug(f"识别到: {name} (置信度: {confidence:.2%})")
-        
         # 检查签到
         for result in results:
-            if result.get('confirmed') and not result.get('cooldown'):
+            name = result.get('name', 'Unknown')
+            matched = result.get('matched', False)
+            confirmed = result.get('confirmed', False)
+            cooldown = result.get('cooldown', False)
+
+            if matched:
+                logger.info(f"识别: {name} matched={matched} confirmed={confirmed} cooldown={cooldown}")
+
+            if confirmed and not cooldown:
                 self._handle_sign(result)
 
     def _display_frame(self, frame):
@@ -697,85 +774,68 @@ class MainWindow(QMainWindow):
         if person_id == self.last_signed_id and now - self.last_signed_time < config.SIGN_COOLDOWN:
             return
 
-        # 确定签到类型
-        sign_type = self.current_sign_type if self.sign_mode == "manual" else self._auto_detect_sign_type(person_id)
+        # 获取手机号
+        phone = ""
+        try:
+            person = db.get_person(person_id)
+            if person:
+                phone = person.get('phone', '')
+        except Exception:
+            pass
 
-        # 保存记录
-        record_id = db.add_attendance(
-            person_id=person_id,
-            sign_type=sign_type,
-            confidence=confidence
-        )
+        # 保存记录到内存
+        try:
+            from api_server import add_attendance_record
+            record, err = add_attendance_record(
+                person_id=person_id,
+                name=name,
+                phone=phone,
+                sign_type='in',
+                confidence=confidence
+            )
+            if err:
+                logger.warning(f"签到被拒绝: {err}")
+                return
+            logger.info(f"签到记录已保存: {name} 第{record['sign_index']}次 (id={record['id']})")
+        except Exception as e:
+            logger.error(f"签到记录保存失败: {e}")
+            return
 
         self.last_signed_id = person_id
         self.last_signed_time = now
 
         # 显示签到成功
-        sign_text = "签到" if sign_type == "in" else "签退"
         time_str = datetime.now().strftime("%H:%M:%S")
-
-        self.sign_success_label.setText(f"{name} - {sign_text}成功 {time_str}")
-
-        # 判断是否迟到
-        is_late = False
-        if sign_type == "in":
-            settings = db.get_settings()
-            work_start = settings.get('work_start', '09:00')
-            late_grace = int(settings.get('late_grace', '15'))
-            now_time = datetime.now().strftime("%H:%M")
-            h, m = map(int, work_start.split(':'))
-            late_limit = f"{h}:{m + late_grace:02d}"
-            if now_time > late_limit:
-                is_late = True
-
-        status_text = f"{sign_text}成功 {time_str}" + (" (迟到)" if is_late else "")
+        sign_idx = record.get('sign_index', 0)
+        status_text = f"签到成功 {time_str} (第{sign_idx}次)"
+        self.sign_success_label.setText(f"{name} - {status_text}")
 
         # 显示覆盖层
-        self.success_overlay.show_sign(name, status_text, sign_type == "in")
+        self.success_overlay.show_sign(name, status_text, True)
 
         # 刷新数据
         self._refresh_stats()
         self._refresh_records()
 
-        logger.info(f"签到: {name} ({sign_text}) 置信度={confidence:.2%}")
+        logger.info(f"签到: {name} 置信度={confidence:.2%}")
 
     def _auto_detect_sign_type(self, person_id):
-        """自动检测签到类型 (根据今日是否已签到)"""
-        status = db.get_person_today_status(person_id)
-        if status['signed_in'] and not status['signed_out']:
-            return 'out'
+        """自动检测签到类型 - 固定为签到（不使用签退功能）"""
+        # 只保留签到功能，不判断是否已签退
         return 'in'
 
     # ==================== 模式控制 ====================
 
     def _toggle_mode(self):
         """切换签到模式"""
-        if self.sign_mode == "auto":
-            self.sign_mode = "manual"
-            self.btn_mode.setText("模式: 手动签到")
-            self.btn_sign_type.setEnabled(self.is_running)
-        else:
-            self.sign_mode = "auto"
-            self.btn_mode.setText("模式: 自动签到")
-            self.btn_sign_type.setEnabled(False)
-
-    def _toggle_sign_type(self):
-        """切换签到/签退"""
-        if self.current_sign_type == "in":
-            self.current_sign_type = "out"
-            self.btn_sign_type.setText("签退")
-            self.btn_sign_type.setObjectName("dangerBtn")
-        else:
-            self.current_sign_type = "in"
-            self.btn_sign_type.setText("签到")
-            self.btn_sign_type.setObjectName("successBtn")
-
     def _toggle_fullscreen(self):
         """切换全屏"""
         if self.isFullScreen():
             self.showNormal()
+            self.btn_fullscreen.setText("全屏")
         else:
             self.showFullScreen()
+            self.btn_fullscreen.setText("退出全屏")
 
     # ==================== 数据刷新 ====================
 
@@ -786,59 +846,64 @@ class MainWindow(QMainWindow):
         weekdays = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
         self.date_label.setText(f"{now.strftime('%Y年%m月%d日')} {weekdays[now.weekday()]}")
 
+        # 更新网络信息（只在第一次或每分钟更新一次）
+        if not hasattr(self, '_last_network_update') or (now.second % 60 == 0):
+            self._update_network_info()
+            self._last_network_update = now
+
+    def _update_network_info(self):
+        """更新网络信息"""
+        try:
+            from config import get_network_name
+            network_name = get_network_name()
+            self.network_label.setText(network_name)
+        except Exception as e:
+            self.network_label.setText("未知网络")
+            logger.error(f"获取网络信息失败: {e}")
+
     def _refresh_stats(self):
         """刷新统计数据"""
         try:
-            stats = db.get_today_statistics()
+            from api_server import get_today_stats_from_memory
+            stats = get_today_stats_from_memory()
             self.stat_total['value'].setText(str(stats['total_persons']))
             self.stat_signed['value'].setText(str(stats['signed_in']))
             self.stat_absent['value'].setText(str(stats['absent']))
-            self.stat_late['value'].setText(str(stats['late_count']))
             self.rate_bar.setValue(int(stats['sign_rate']))
-
-            self.lbl_face_count.setText(str(self.face_engine.get_face_count()))
         except Exception as e:
             logger.error(f"刷新统计失败: {e}")
+
+        # 更新当前环境名称（独立于统计，避免import失败时连带丢失）
+        try:
+            env = db.get_active_environment()
+            if env:
+                self.env_label.setText(env.get('name', ''))
+            else:
+                self.env_label.setText("")
+        except Exception:
+            pass
 
     def _refresh_records(self):
         """刷新签到记录"""
         try:
-            records = db.get_today_attendance()
+            from api_server import get_today_records
+            records = get_today_records()
             self.records_table.setRowCount(len(records))
 
-            settings = db.get_settings()
-            work_start = settings.get('work_start', '09:00')
-            late_grace = int(settings.get('late_grace', '15'))
-
             for row, r in enumerate(records):
-                sign_type_text = "签到" if r['sign_type'] == 'in' else "签退"
                 sign_time = r['sign_time']
-
-                # 判断迟到
-                status = "正常"
-                if r['sign_type'] == 'in':
-                    try:
-                        t = datetime.strptime(sign_time, "%Y-%m-%d %H:%M:%S")
-                        h, m = map(int, work_start.split(':'))
-                        limit = t.replace(hour=h, minute=m + late_grace)
-                        if t > limit:
-                            status = "迟到"
-                    except:
-                        pass
 
                 items = [
                     r.get('name', ''),
-                    r.get('employee_id', ''),
-                    sign_type_text,
-                    sign_time.split(' ')[1] if ' ' in sign_time else sign_time,
-                    status
+                    r.get('phone', ''),
+                    str(r.get('sign_index', '')) if r.get('sign_index') else '',
+                    "签到",
+                    sign_time.split(' ')[1] if ' ' in sign_time else sign_time
                 ]
 
                 for col, text in enumerate(items):
                     item = QTableWidgetItem(text)
                     item.setTextAlignment(Qt.AlignCenter)
-                    if status == "迟到":
-                        item.setForeground(QColor(255, 100, 100))
                     self.records_table.setItem(row, col, item)
 
         except Exception as e:
@@ -851,6 +916,83 @@ class MainWindow(QMainWindow):
         persons = db.get_persons_with_encoding()
         self.face_engine.load_known_faces(persons)
         logger.info(f"已加载 {len(persons)} 个人脸编码")
+        self._generate_qrcode()
+
+    def _generate_qrcode(self):
+        """生成手机扫码连接的二维码"""
+        try:
+            import qrcode
+            from config import get_local_ip
+
+            ip = get_local_ip()
+            port = config.API_PORT
+
+            # 二维码内容：直接指向移动端控制台页面
+            qr_data = f'http://{ip}:{port}/m'
+
+            # 生成二维码
+            qr = qrcode.QRCode(
+                version=2,
+                error_correction=qrcode.constants.ERROR_CORRECT_M,
+                box_size=6,
+                border=2
+            )
+            qr.add_data(qr_data)
+            qr.make(fit=True)
+
+            img = qr.make_image(fill_color="#1a1a1a", back_color="white")
+
+            # 缩放到合适大小
+            img = img.resize((160, 160))
+
+            # 转为QPixmap显示
+            from PyQt5.QtGui import QPixmap
+            from io import BytesIO
+            buf = BytesIO()
+            img.save(buf, format='PNG')
+            buf.seek(0)
+            pixmap = QPixmap()
+            pixmap.loadFromData(buf.read())
+            self.qr_label.setPixmap(pixmap)
+
+            logger.info(f"二维码已生成: {ip}:{port}")
+        except Exception as e:
+            self.qr_label.setText("二维码生成失败")
+            logger.error(f"生成二维码失败: {e}")
+
+    def _check_console_status(self):
+        """检查控制台是否被移动端占用"""
+        try:
+            import urllib.request
+            url = f"http://127.0.0.1:{config.API_PORT}/api/console/status"
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                if data.get('success') and data.get('data', {}).get('occupied'):
+                    # 被占用：隐藏二维码，显示已连接
+                    self.qr_container.hide()
+                    self.connected_container.show()
+                else:
+                    # 未占用：显示二维码，隐藏已连接
+                    self.qr_container.show()
+                    self.connected_container.hide()
+        except Exception:
+            pass
+
+    def _check_camera_toggle(self):
+        """检查移动端是否请求了摄像头开关"""
+        try:
+            from api_server import app as flask_app
+            requested = getattr(flask_app, '_camera_toggle_requested', None)
+            if requested is not None:
+                flask_app._camera_toggle_requested = None
+                # requested=True 表示移动端要求开，False 表示关
+                if requested and not self.is_running:
+                    self._start_camera()
+                elif not requested and self.is_running:
+                    self._stop_camera()
+        except Exception:
+            pass
 
     # ==================== 关闭事件 ====================
 

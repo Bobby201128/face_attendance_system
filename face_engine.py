@@ -434,17 +434,7 @@ class FaceEngine:
             return []
 
     def draw_results(self, frame, results, show_confidence=True):
-        """在帧上绘制识别结果（优化版）
-
-        Args:
-            frame: BGR格式图像
-            results: process_frame的返回结果
-            show_confidence: 是否显示置信度
-
-        Returns:
-            绘制后的BGR图像（直接在原图像上修改）
-        """
-        # 直接在原图像上绘制，避免复制
+        """在帧上绘制识别结果（支持中文）"""
         for result in results:
             top, right, bottom, left = result['location']
             name = result.get('name', 'Unknown')
@@ -454,49 +444,86 @@ class FaceEngine:
             cooldown = result.get('cooldown', False)
 
             if matched and confirmed:
-                # 签到成功 - 绿色
                 color = (0, 255, 0)
-                label = f"{name} ({confidence:.0%})"
+                label = f"{name}"
             elif matched and cooldown:
-                # 冷却中 - 黄色
                 color = (0, 255, 255)
-                label = f"{name} (已签到)"
+                label = f"{name} 已签到"
             elif matched:
-                # 识别中 - 蓝色
-                count = self._confirm_counters.get(result['person_id'], 0)
                 color = (255, 165, 0)
-                label = f"{name} ({count}/{self._confirm_frames})"
+                label = f"{name}"
             else:
-                # 未知 - 红色
                 color = (0, 0, 255)
                 label = "Unknown"
 
             # 绘制人脸框
             cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
 
-            # 绘制标签背景
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            font_scale = 0.6
-            thickness = 1
+            # 使用PIL绘制中文文字
+            try:
+                from PIL import Image, ImageDraw, ImageFont
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                pil_img = Image.fromarray(frame_rgb)
+                draw = ImageDraw.Draw(pil_img)
 
-            (text_width, text_height), baseline = cv2.getTextSize(
-                label, font, font_scale, thickness
-            )
+                font_size = 20
+                try:
+                    font = ImageFont.truetype("msyh.ttc", font_size)
+                except:
+                    try:
+                        font = ImageFont.truetype("msyh.ttf", font_size)
+                    except:
+                        try:
+                            font = ImageFont.truetype("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc", font_size)
+                        except:
+                            font = ImageFont.load_default()
 
-            label_y = top - 10 if top - 10 > text_height else bottom + text_height + 10
+                bbox = draw.textbbox((0, 0), label, font=font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
 
-            cv2.rectangle(
-                frame,
-                (left, label_y - text_height - 5),
-                (left + text_width + 10, label_y + 5),
-                color,
-                -1
-            )
-            cv2.putText(
-                frame, label,
-                (left + 5, label_y - 3),
-                font, font_scale, (255, 255, 255), thickness
-            )
+                label_y = top - 10 if top - 10 > text_height + 5 else bottom + 5
+
+                # 半透明黑底 + 描边提高对比度
+                pad = 4
+                bg_left = left - 1
+                bg_top = label_y - text_height - pad
+                bg_right = left + text_width + pad + 2
+                bg_bottom = label_y + pad
+                draw.rectangle(
+                    [(bg_left, bg_top), (bg_right, bg_bottom)],
+                    fill=(0, 0, 0, 200),
+                    outline=(255, 255, 255, 180),
+                    width=1
+                )
+                draw.text(
+                    (left + pad, label_y - text_height - 1),
+                    label,
+                    fill=(255, 255, 255),
+                    font=font
+                )
+
+                frame[:] = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+            except ImportError:
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                font_scale = 0.6
+                thickness = 1
+                (text_width, text_height), baseline = cv2.getTextSize(
+                    label, font, font_scale, thickness
+                )
+                label_y = top - 10 if top - 10 > text_height else bottom + text_height + 10
+                cv2.rectangle(
+                    frame,
+                    (left, label_y - text_height - 5),
+                    (left + text_width + 10, label_y + 5),
+                    (0, 0, 0),
+                    -1
+                )
+                cv2.putText(
+                    frame, label,
+                    (left + 5, label_y - 3),
+                    font, font_scale, (255, 255, 255), thickness
+                )
 
         return frame
 

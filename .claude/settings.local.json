@@ -10,7 +10,26 @@
       "Bash(python test_simplified.py)",
       "Bash(git commit -m 'test: 添加系统启动和功能测试脚本:*)",
       "Bash(git commit -m 'test: 添加系统功能测试脚本:*)",
-      "Bash(git commit -m 'docs: 添加修复完成报告:*)"
+      "Bash(git commit -m 'docs: 添加修复完成报告:*)",
+      "Bash(git commit -m 'docs: 添加最终简化完成报告:*)",
+      "Bash(python -m py_compile pc_app.py)",
+      "Bash(python verify_simplification.py)",
+      "Bash(python verify_final.py)",
+      "Bash(python test_system_state.py)",
+      "Bash(sed -i '1086,1145d' mobile.html)",
+      "Bash(sed -i '1085a\\\\\\\\:*)",
+      "Bash(sed -i '1900,1901d' mobile.html)",
+      "Bash(sed -i '1899a\\\\\\\\:*)",
+      "Bash(sed -i '1900d' mobile.html)",
+      "Bash(sed -i '1903,1904d' mobile.html)",
+      "Bash(python main.py)",
+      "Bash(netsh wlan:*)",
+      "Bash(python -c ':*)",
+      "Bash(curl -s --max-time 2 http://127.0.0.1:5000/api/device/heartbeat)",
+      "Bash(curl -s --max-time 2 http://192.168.3.48:5000/api/device/heartbeat)",
+      "Bash(python -c \"import qrcode; print\\('ok'\\)\")",
+      "Bash(node -c ':*)",
+      "Bash(node -e ':*)"
     ]
   }
 }

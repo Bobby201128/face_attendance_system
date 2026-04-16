@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>人脸识别签到系统 - 移动端</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        .header {
+            background: #2a2a2a;
+            padding: 15px 20px;
+            border-bottom: 1px solid #404040;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .container {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .page {
+            display: block;
+        }
+        .card {
+            background: #2a2a2a;
+            border: 1px solid #404040;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .card h2 {
+            font-size: 16px;
+            margin-bottom: 15px;
+            color: #ffffff;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-box {
+            background: #1a1a1a;
+            border: 1px solid #404040;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ffffff;
+            margin-bottom: 5px;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #808080;
+        }
+        .btn {
+            background: #404040;
+            border: none;
+            border-radius: 4px;
+            color: #ffffff;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn:hover {
+            background: #505050;
+        }
+        .empty {
+            text-align: center;
+            padding: 40px;
+            color: #808080;
+        }
+        .list-item {
+            background: #1a1a1a;
+            border: 1px solid #404040;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        .list-item-title {
+            color: #e0e0e0;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+        .list-item-desc {
+            color: #808080;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>签到管理</h1>
+        <span style="font-size: 12px; color: #808080;">本地模式</span>
+    </div>
+
+    <div class="container">
+        <!-- 统计卡片 -->
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div class="stat-value" id="totalPersons">-</div>
+                <div class="stat-label">总人数</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="signedIn">-</div>
+                <div class="stat-label">已签到</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="notSignedIn">-</div>
+                <div class="stat-label">未签到</div>
+            </div>
+        </div>
+
+        <!-- 快速操作 -->
+        <div class="card">
+            <h2>快速操作</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px;">
+                <button class="btn" onclick="showPage('persons')">人员管理</button>
+                <button class="btn" onclick="showPage('records')">签到记录</button>
+                <button class="btn" onclick="showPage('stats')">数据统计</button>
+                <button class="btn" onclick="refreshData()">刷新数据</button>
+            </div>
+        </div>
+
+        <!-- 今日签到 -->
+        <div class="card">
+            <h2>今日签到</h2>
+            <div id="todayRecords">
+                <div class="empty">加载中...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('页面加载完成');
+            loadDashboard();
+        });
+
+        // 加载仪表板数据
+        async function loadDashboard() {
+            try {
+                // 加载统计数据
+                const statsRes = await fetch(API_BASE + '/api/statistics/today');
+                const statsData = await statsRes.json();
+
+                if (statsData.code === 200) {
+                    document.getElementById('totalPersons').textContent = statsData.data.total_persons || 0;
+                    document.getElementById('signedIn').textContent = statsData.data.signed_in || 0;
+                    document.getElementById('notSignedIn').textContent = statsData.data.not_signed_in || 0;
+                }
+
+                // 加载今日签到记录
+                const recordsRes = await fetch(API_BASE + '/api/attendance/today');
+                const recordsData = await recordsRes.json();
+
+                if (recordsData.code === 200) {
+                    displayRecords(recordsData.data.attendance || []);
+                }
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                document.getElementById('todayRecords').innerHTML = '<div class="empty">加载失败，请确保PC端已启动</div>';
+            }
+        }
+
+        // 显示签到记录
+        function displayRecords(records) {
+            const container = document.getElementById('todayRecords');
+
+            if (!records || records.length === 0) {
+                container.innerHTML = '<div class="empty">暂无签到记录</div>';
+                return;
+            }
+
+            let html = '';
+            records.forEach(record => {
+                const time = new Date(record.sign_time);
+                const timeStr = `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`;
+                const type = record.sign_type === 'IN' ? '签到' : '签退';
+
+                html += `
+                    <div class="list-item">
+                        <div class="list-item-title">${record.person_name}</div>
+                        <div class="list-item-desc">${timeStr} - ${type}</div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // 刷新数据
+        function refreshData() {
+            loadDashboard();
+        }
+
+        // 显示提示
+        function showPage(page) {
+            alert('完整功能请使用原mobile.html页面\n\n' + page + ' 功能即将开放');
+        }
+
+        // 自动刷新（每30秒）
+        setInterval(loadDashboard, 30000);
+    </script>
+</body>
+</html>

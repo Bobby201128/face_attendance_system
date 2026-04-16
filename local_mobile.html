@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>签到设备管理</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#1a1a1a;color:#e0e0e0;min-height:100vh;padding-bottom:56px}
+        .page{display:none;min-height:100vh;background:#1a1a1a}
+        .page.active{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
+        .page.app-active{display:block}
+        /* 连接页 */
+        .connect-box{background:#2a2a2a;border-radius:16px;padding:40px 30px;text-align:center;max-width:360px;border:1px solid #333}
+        .connect-box h2{font-size:20px;color:#e0e0e0;margin-bottom:12px}
+        .connect-box p{color:#888;font-size:14px;margin-bottom:20px;line-height:1.6}
+        .connect-device-name{font-size:22px;font-weight:bold;color:#4CAF50;margin-bottom:4px}
+        .connect-network{font-size:12px;color:#666;margin-bottom:20px}
+        .connect-status{font-size:13px;color:#4CAF50;margin-top:10px}
+        .connect-error{font-size:13px;color:#e74c3c;margin-top:10px}
+        /* 按钮 */
+        .btn-primary{width:100%;padding:15px;background:#4CAF50;color:white;border:none;border-radius:10px;font-size:16px;font-weight:bold;cursor:pointer}
+        .btn-primary:active{background:#45a049}
+        .btn-secondary{width:100%;padding:13px;background:transparent;color:#888;border:1px solid #404040;border-radius:10px;font-size:14px;cursor:pointer;margin-top:10px}
+        .btn-secondary:active{background:#2a2a2a}
+        .btn-danger{width:100%;padding:14px;background:#e74c3c;color:white;border:none;border-radius:10px;font-size:14px;font-weight:bold;cursor:pointer}
+        .btn-danger:active{background:#c0392b}
+        .btn-sm{padding:8px 16px;font-size:12px;border-radius:6px;border:none;cursor:pointer}
+        /* 密码页 */
+        .password-card{background:#2a2a2a;border-radius:16px;padding:35px 30px;width:100%;max-width:360px;border:1px solid #333}
+        .password-card h2{font-size:20px;text-align:center;margin-bottom:8px;color:#e0e0e0}
+        .password-card p{font-size:13px;color:#888;text-align:center;margin-bottom:25px}
+        .password-card input[type="password"]{width:100%;padding:15px;background:#1a1a1a;border:2px solid #333;border-radius:10px;color:#e0e0e0;font-size:18px;text-align:center;letter-spacing:4px;box-sizing:border-box;margin-bottom:10px}
+        .password-card input:focus{outline:none;border-color:#4CAF50}
+        .password-error{font-size:12px;color:#e74c3c;text-align:center;min-height:18px;margin-bottom:10px}
+        /* 占用/断联 */
+        .occupied-box{background:#2a2a2a;border-radius:16px;padding:40px 30px;text-align:center;max-width:360px;border:1px solid #333}
+        .occupied-box h2{font-size:20px;color:#e0e0e0;margin-bottom:12px}
+        .occupied-box p{color:#888;font-size:14px;margin-bottom:30px;line-height:1.6}
+        .disconnect-modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;z-index:9999}
+        .disconnect-modal.hidden{display:none}
+        .disconnect-box{background:#2a2a2a;border-radius:16px;padding:35px;text-align:center;max-width:300px;margin:20px;border:1px solid #333}
+        .disconnect-box h2{font-size:20px;color:#e0e0e0;margin-bottom:10px}
+        .disconnect-box p{color:#888;font-size:14px;margin-bottom:25px}
+        /* 顶栏 */
+        .app-header{background:#2a2a2a;color:#e0e0e0;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #333;position:sticky;top:0;z-index:100}
+        .app-header h1{font-size:16px;font-weight:bold}
+        .header-left{display:flex;align-items:center;gap:10px}
+        .header-network{font-size:10px;color:#4CAF50;background:rgba(76,175,80,0.1);padding:2px 8px;border-radius:4px}
+        .disconnect-link{color:#888;text-decoration:none;font-size:12px;padding:6px 12px;border:1px solid #404040;border-radius:6px}
+        /* 底部导航 */
+        .bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#2a2a2a;display:flex;border-top:1px solid #333;z-index:100;height:56px}
+        .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#666;font-size:10px;gap:2px;cursor:pointer;border:none;background:none}
+        .nav-item.active{color:#4CAF50}
+        .nav-item .nav-icon{font-size:20px}
+        /* Tab */
+        .tab-content{display:none;padding:16px}
+        .tab-content.active{display:block}
+        /* 概览 */
+        .stat-card{background:#2a2a2a;border-radius:12px;padding:20px;margin-bottom:16px;display:flex;justify-content:space-around;border:1px solid #333}
+        .stat-item{text-align:center}
+        .stat-label{font-size:12px;color:#888;margin-bottom:6px}
+        .stat-value{font-size:30px;font-weight:bold;color:#4CAF50}
+        .section-title{font-size:15px;font-weight:bold;color:#e0e0e0;margin:20px 0 10px 0;padding-bottom:6px;border-bottom:1px solid #333}
+        .record-item{background:#2a2a2a;border-radius:10px;padding:12px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px;border:1px solid #333}
+        .record-item.selected{border-color:#4CAF50;background:rgba(76,175,80,0.05)}
+        .record-check{width:20px;height:20px;border-radius:4px;border:2px solid #555;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;color:transparent;cursor:pointer}
+        .record-item.selected .record-check{border-color:#4CAF50;background:#4CAF50;color:white}
+        .record-info{flex:1;min-width:0}
+        .record-name{font-weight:bold;font-size:14px;color:#e0e0e0}
+        .record-time{font-size:11px;color:#888;margin-top:2px}
+        .record-badge{font-size:10px;padding:2px 8px;background:rgba(76,175,80,0.1);color:#4CAF50;border-radius:4px;white-space:nowrap}
+        .batch-bar{display:flex;gap:8px;margin-bottom:12px;align-items:center}
+        .empty-state{text-align:center;padding:50px 20px;color:#555}
+        /* 人员 */
+        .person-toolbar{display:flex;gap:8px;margin-bottom:12px}
+        .toolbar-btn{flex:1;padding:10px;background:#2a2a2a;color:#e0e0e0;border:1px solid #333;border-radius:8px;font-size:12px;cursor:pointer;text-align:center}
+        .toolbar-btn:active{background:#333}
+        .toolbar-btn.btn-add{background:#4CAF50;border-color:#4CAF50;color:white;font-weight:bold}
+        .toolbar-btn.btn-add:active{background:#45a049}
+        .person-item{background:#2a2a2a;border-radius:10px;padding:12px 14px;margin-bottom:6px;border:1px solid #333;display:flex;align-items:center;justify-content:space-between}
+        .person-item.disabled{opacity:0.5}
+        .person-info{flex:1;min-width:0}
+        .person-name{font-weight:bold;font-size:14px;color:#e0e0e0}
+        .person-phone{font-size:11px;color:#888;margin-top:2px}
+        .person-tags{display:flex;gap:4px;margin-top:4px}
+        .tag{font-size:10px;padding:1px 6px;border-radius:3px}
+        .tag-face{background:rgba(76,175,80,0.15);color:#4CAF50}
+        .tag-no-face{background:rgba(231,76,60,0.15);color:#e74c3c}
+        .person-actions{display:flex;align-items:center;gap:6px}
+        .toggle-switch{width:40px;height:22px;border-radius:11px;background:#404040;position:relative;cursor:pointer;border:none;padding:0;flex-shrink:0}
+        .toggle-switch.on{background:#4CAF50}
+        .toggle-switch::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:white;transition:transform .2s}
+        .toggle-switch.on::after{transform:translateX(18px)}
+        .icon-btn{background:none;border:none;color:#888;font-size:18px;cursor:pointer;padding:4px}
+        /* 弹窗 */
+        .modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);display:flex;align-items:flex-end;justify-content:center;z-index:200}
+        .modal-overlay.hidden{display:none}
+        .modal-sheet{background:#2a2a2a;border-radius:16px 16px 0 0;padding:24px 20px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto}
+        .modal-sheet h3{font-size:18px;margin-bottom:20px;text-align:center}
+        .form-group{margin-bottom:16px}
+        .form-group label{display:block;font-size:13px;color:#888;margin-bottom:6px}
+        .form-group input,.form-group textarea,.form-group select{width:100%;padding:12px;background:#1a1a1a;border:2px solid #333;border-radius:8px;color:#e0e0e0;font-size:15px;box-sizing:border-box;font-family:inherit}
+        .form-group select{appearance:auto}
+        .form-group textarea{resize:vertical;min-height:60px}
+        .form-group input:focus,.form-group textarea:focus,.form-group select:focus{outline:none;border-color:#4CAF50}
+        .form-error{font-size:12px;color:#e74c3c;min-height:16px;margin-bottom:8px}
+        .modal-actions{display:flex;gap:10px;margin-top:20px}
+        .modal-actions button{flex:1}
+        /* 确认弹窗（居中） */
+        .confirm-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:300}
+        .confirm-overlay.hidden{display:none}
+        .confirm-box{background:#2a2a2a;border-radius:16px;padding:30px 24px;width:90%;max-width:320px;text-align:center;border:1px solid #333}
+        .confirm-box h4{font-size:16px;color:#e0e0e0;margin-bottom:12px}
+        .confirm-box p{font-size:14px;color:#888;margin-bottom:24px;line-height:1.5}
+        .confirm-actions{display:flex;gap:10px}
+        .confirm-actions button{flex:1;padding:12px;border:none;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer}
+        /* 拍照 */
+        .camera-view{position:relative;width:100%;max-width:320px;margin:0 auto;background:#000;border-radius:12px;overflow:hidden}
+        .camera-view video{width:100%;display:block;border-radius:12px}
+        .camera-view canvas,.camera-view img{display:none;width:100%;border-radius:12px}
+        .camera-controls{display:flex;justify-content:center;gap:16px;margin-top:16px}
+        .cam-btn{width:64px;height:64px;border-radius:50%;border:3px solid #4CAF50;background:transparent;color:#4CAF50;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+        .cam-btn:active{background:rgba(76,175,80,0.2)}
+        .cam-btn.capture{background:#4CAF50;color:white}
+        .cam-btn.capture:active{background:#45a049}
+        .file-fallback{display:flex;flex-direction:column;align-items:center;gap:12px;padding:20px}
+        .file-fallback input[type="file"]{display:none}
+        .file-fallback .file-btn{padding:20px 40px;background:#1a1a1a;border:2px dashed #4CAF50;border-radius:12px;color:#4CAF50;font-size:14px;cursor:pointer;text-align:center}
+        .file-fallback img{max-width:200px;max-height:200px;border-radius:8px}
+        /* 进度条 */
+        .progress-bar{width:100%;height:6px;background:#333;border-radius:3px;margin-top:12px;overflow:hidden;display:none}
+        .progress-bar .fill{height:100%;background:#4CAF50;border-radius:3px;width:0%;transition:width .2s}
+        /* 环境 */
+        .env-card{background:#2a2a2a;border-radius:12px;padding:16px;margin-bottom:10px;border:2px solid #333}
+        .env-card.active{border-color:#4CAF50}
+        .env-card-header{display:flex;justify-content:space-between;align-items:center}
+        .env-name{font-size:16px;font-weight:bold;color:#e0e0e0}
+        .env-desc{font-size:12px;color:#888;margin-top:4px}
+        .env-meta{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
+        .env-meta span{font-size:11px;color:#666}
+        .env-active-badge{display:inline-block;font-size:10px;padding:1px 8px;background:#4CAF50;color:white;border-radius:3px;margin-left:8px}
+        .env-actions{display:flex;gap:8px;margin-top:10px}
+        .env-actions button{padding:6px 14px;border-radius:6px;font-size:12px;border:none;cursor:pointer}
+        /* Toast */
+        .toast{position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#333;color:#e0e0e0;padding:10px 20px;border-radius:8px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;border:1px solid #444;white-space:nowrap;max-width:90%;text-align:center}
+        .toast.show{opacity:1}
+        .toast.success{border-color:#4CAF50;color:#4CAF50}
+        .toast.error{border-color:#e74c3c;color:#e74c3c}
+        /* 加载 */
+        .sound-section{background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:16px;margin-top:12px}
+        .sound-section .sound-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+        .sound-section .sound-label{font-size:14px;font-weight:bold;color:#e0e0e0}
+        .sound-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+        .sound-row label{font-size:13px;color:#888;flex-shrink:0;min-width:80px}
+        .sound-row input[type=range]{flex:1;height:6px;-webkit-appearance:none;appearance:none;background:#404040;border-radius:3px;outline:none}
+        .sound-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#4CAF50;cursor:pointer}
+        .sound-row .vol-val{font-size:12px;color:#4CAF50;min-width:32px;text-align:center}
+        .loading-spinner{border:3px solid #2a2a2a;border-top:3px solid #4CAF50;border-radius:50%;width:30px;height:30px;animation:spin 1s linear infinite;margin:0 auto 12px}
+        @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+        /* 设置 */
+        .settings-row{display:flex;gap:10px;margin-bottom:12px}
+        /* 摄像头预览 */
+        .camera-preview{background:#000;border-radius:12px;overflow:hidden;margin-bottom:16px;position:relative}
+        .camera-preview img{width:100%;display:block;min-height:200px;object-fit:cover}
+        .camera-preview .cam-status{position:absolute;top:8px;left:8px;font-size:10px;padding:3px 8px;border-radius:4px;color:white}
+        .camera-preview .cam-status.on{background:rgba(76,175,80,0.8)}
+        .camera-preview .cam-status.off{background:rgba(231,76,60,0.8)}
+        .camera-toggle-btn{width:100%;padding:14px;border-radius:10px;font-size:14px;font-weight:bold;cursor:pointer;border:none;margin-bottom:16px}
+        .camera-toggle-btn.on{background:#e74c3c;color:white}
+        .camera-toggle-btn.off{background:#4CAF50;color:white}
+        /* SVG图标 */
+        .icon-svg{display:inline-block;width:24px;height:24px;vertical-align:middle}
+        .icon-svg-lg{width:48px;height:48px}
+        .icon-svg-sm{width:18px;height:18px;vertical-align:middle;margin-top:-2px}
+        .icon-svg .svg-stroke{stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+    </style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<!-- 确认弹窗 -->
+<div class="confirm-overlay hidden" id="confirmOverlay">
+    <div class="confirm-box">
+        <h4 id="confirmTitle">确认</h4>
+        <p id="confirmMsg"></p>
+        <div class="confirm-actions">
+            <button class="btn-secondary" onclick="confirmCancel()">取消</button>
+            <button class="btn-danger" id="confirmOkBtn" onclick="confirmOk()">确定</button>
+        </div>
+    </div>
+</div>
+
+<!-- 连接页 -->
+<div class="page active" id="connectPage">
+    <div class="connect-box">
+        <div style="margin-bottom:16px"><span class="icon-svg-lg" style="color:#4CAF50"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12" y2="18.01"/></svg></span></div>
+        <h2>连接签到设备</h2>
+        <div class="connect-device-name" id="connectDeviceName"></div>
+        <div class="connect-network" id="connectNetwork"></div>
+        <p id="connectMsg">正在连接设备...</p>
+        <div class="connect-status" id="connectStatus"></div>
+        <button class="btn-secondary" style="margin-top:20px;display:none" id="retryBtn" onclick="initConnection()">重试</button>
+    </div>
+</div>
+
+<!-- 设置密码页 -->
+<div class="page" id="setPasswordPage">
+    <div class="password-card">
+        <h2>首次使用，设置控制密码</h2>
+        <p>此密码用于保护签到设备控制台</p>
+        <input type="password" id="newPassword" placeholder="请输入密码（至少4位）" maxlength="20">
+        <input type="password" id="confirmPassword" placeholder="再次确认密码">
+        <div class="password-error" id="setError"></div>
+        <button class="btn-primary" onclick="submitNewPassword()">确认设置</button>
+    </div>
+</div>
+
+<!-- 输入密码页 -->
+<div class="page" id="loginPage">
+    <div class="password-card">
+        <h2>请输入控制密码</h2>
+        <p>输入密码以连接签到设备</p>
+        <input type="password" id="loginPassword" placeholder="请输入密码" maxlength="20">
+        <div class="password-error" id="loginError"></div>
+        <button class="btn-primary" onclick="submitLogin()">连接设备</button>
+    </div>
+</div>
+
+<!-- 占用提示页 -->
+<div class="page" id="occupiedPage">
+    <div class="occupied-box">
+        <div style="margin-bottom:16px"><span class="icon-svg-lg" style="color:#4CAF50"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12" y2="18.01"/></svg></span></div>
+        <h2>设备正在被操作</h2>
+        <p>当前签到设备正在被其他移动端控制<br>请稍后再试</p>
+        <button class="btn-danger" onclick="initConnection()">刷新重试</button>
+    </div>
+</div>
+
+<!-- 断联提示 -->
+<div class="disconnect-modal hidden" id="disconnectModal">
+    <div class="disconnect-box">
+        <div style="margin-bottom:16px"><span class="icon-svg-lg" style="color:#e74c3c"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span></div>
+        <h2>连接已断开</h2>
+        <p>与设备的连接已断开</p>
+        <button class="btn-danger" onclick="returnToConnect()">重新连接</button>
+    </div>
+</div>
+
+<!-- ===== 主应用 ===== -->
+<div class="page app-active" id="appPage">
+    <div class="app-header">
+        <div class="header-left">
+            <h1 id="deviceTitle">签到设备</h1>
+            <span class="header-network" id="appNetwork"></span>
+        </div>
+        <a href="#" class="disconnect-link" onclick="disconnectDevice()">断开</a>
+    </div>
+
+    <!-- Tab: 概览 -->
+    <div class="tab-content active" id="tabOverview">
+        <div class="section-title">实时画面</div>
+        <div class="camera-preview" id="cameraPreview">
+            <img id="previewImg" src="" alt="摄像头画面">
+            <span class="cam-status off" id="camStatus">离线</span>
+        </div>
+        <button class="camera-toggle-btn off" id="cameraToggleBtn" onclick="toggleCamera()">开启摄像头</button>
+        <div class="stat-card">
+            <div class="stat-item"><div class="stat-label">今日签到</div><div class="stat-value" id="todayCount">-</div></div>
+            <div class="stat-item"><div class="stat-label">已注册人员</div><div class="stat-value" id="personCount">-</div></div>
+        </div>
+        <div class="section-title">今日签到记录</div>
+        <div class="batch-bar" id="recordBatchBar" style="display:none">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#888;cursor:pointer" onclick="toggleSelectAllRecords()">
+                <span class="record-check" id="selectAllCheck" style="width:18px;height:18px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>全选
+            </label>
+            <div style="flex:1"></div>
+            <button class="btn-sm" style="background:#e74c3c;color:white" onclick="deleteSelectedRecords()">删除选中</button>
+            <a id="exportLink" class="btn-sm" style="background:#2a2a2a;color:#4CAF50;border:1px solid #4CAF50;text-decoration:none;text-align:center" download>导出Excel</a>
+        </div>
+        <div id="recordsList"><div style="text-align:center;padding:30px;color:#666"><div class="loading-spinner"></div><div>加载中...</div></div></div>
+    </div>
+
+    <!-- Tab: 人员 -->
+    <div class="tab-content" id="tabPersons">
+        <div class="person-toolbar">
+            <button class="toolbar-btn btn-add" onclick="showAddPerson()">+ 添加</button>
+            <button class="toolbar-btn" onclick="batchEnable(true)">全部启用</button>
+            <button class="toolbar-btn" onclick="batchEnable(false)">全部禁用</button>
+        </div>
+        <div id="personList"><div style="text-align:center;padding:30px;color:#666"><div class="loading-spinner"></div><div>加载中...</div></div></div>
+    </div>
+
+    <!-- Tab: 设置 -->
+    <div class="tab-content" id="tabSettings">
+        <div class="section-title">预设环境</div>
+        <div style="text-align:right;margin-bottom:10px"><button class="btn-sm" style="background:#4CAF50;color:white" onclick="showEnvModal()">+ 新建环境</button></div>
+        <div id="envList"><div style="text-align:center;padding:30px;color:#666"><div class="loading-spinner"></div><div>加载中...</div></div></div>
+        <div style="margin-top:24px">
+            <button class="btn-danger" onclick="showPasswordModal()">修改控制密码</button>
+        </div>
+    </div>
+</div>
+
+<!-- 底部导航 -->
+<div class="bottom-nav" id="bottomNav" style="display:none">
+    <button class="nav-item active" onclick="switchTab('Overview',this)"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span>概览</span></button>
+    <button class="nav-item" onclick="switchTab('Persons',this)"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span>人员</span></button>
+    <button class="nav-item" onclick="switchTab('Settings',this)"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span><span>设置</span></button>
+</div>
+
+<!-- 添加人员弹窗 -->
+<div class="modal-overlay hidden" id="addPersonModal">
+    <div class="modal-sheet">
+        <h3>添加人员</h3>
+        <div class="form-group"><label>姓名 *</label><input type="text" id="personName" placeholder="请输入姓名" maxlength="20"></div>
+        <div class="form-group"><label>手机号</label><input type="text" id="personPhone" placeholder="请输入手机号" maxlength="15"></div>
+        <div class="form-group">
+            <label>人脸照片（必须）</label>
+            <div id="addCameraArea"></div>
+            <div class="progress-bar" id="addUploadProgress"><div class="fill" id="addUploadFill"></div></div>
+        </div>
+        <div class="form-error" id="addPersonError"></div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeAddPerson()">取消</button>
+            <button class="btn-primary" id="submitPersonBtn" onclick="submitAddPerson()">确认添加</button>
+        </div>
+    </div>
+</div>
+
+<!-- 人脸注册弹窗 -->
+<div class="modal-overlay hidden" id="faceModal">
+    <div class="modal-sheet">
+        <h3>注册人脸</h3>
+        <p style="color:#888;font-size:13px;text-align:center;margin-bottom:16px" id="faceTargetName"></p>
+        <div id="faceCameraArea"></div>
+        <div class="progress-bar" id="faceUploadProgress"><div class="fill" id="faceUploadFill"></div></div>
+        <div class="form-error" id="faceError"></div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeFaceModal()">取消</button>
+            <button class="btn-primary" id="submitFaceBtn" onclick="submitFace()">上传注册</button>
+        </div>
+    </div>
+</div>
+
+<!-- 修改密码弹窗 -->
+<div class="modal-overlay hidden" id="passwordModal">
+    <div class="modal-sheet">
+        <h3>修改控制密码</h3>
+        <div class="form-group"><label>原密码</label><input type="password" id="pwdOld" placeholder="请输入原密码"></div>
+        <div class="form-group"><label>新密码（至少4位）</label><input type="password" id="pwdNew" placeholder="请输入新密码"></div>
+        <div class="form-group"><label>确认新密码</label><input type="password" id="pwdNew2" placeholder="再次输入新密码"></div>
+        <div class="form-error" id="pwdError"></div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closePasswordModal()">取消</button>
+            <button class="btn-primary" onclick="doChangePassword()">确认修改</button>
+        </div>
+    </div>
+</div>
+
+<!-- 新建/编辑环境弹窗 -->
+<div class="modal-overlay hidden" id="envModal">
+    <div class="modal-sheet">
+        <h3 id="envModalTitle">新建环境</h3>
+        <input type="hidden" id="envEditId" value="">
+        <div class="form-group"><label>环境名称 *</label><input type="text" id="envName" placeholder="例如：日常签到" maxlength="30"><div style="font-size:11px;color:#666;margin-top:4px">为不同的使用场景创建配置方案</div></div>
+        <div class="form-group"><label>描述</label><textarea id="envDesc" placeholder="可选描述" rows="2"></textarea><div style="font-size:11px;color:#666;margin-top:4px">备注该环境的用途说明</div></div>
+        <div class="form-group"><label>识别阈值（0.1~1.0）</label><input type="text" id="envThreshold" placeholder="0.55"><div style="font-size:11px;color:#666;margin-top:4px">值越高越严格，亚洲人脸建议 0.55~0.60</div></div>
+        <div class="form-group"><label>确认帧数</label><input type="text" id="envFrames" placeholder="3"><div style="font-size:11px;color:#666;margin-top:4px">连续识别到多少帧才确认签到，防止误识别</div></div>
+        <div class="form-group"><label>签到冷却（秒）</label><input type="text" id="envCooldown" placeholder="60"><div style="font-size:11px;color:#666;margin-top:4px">同一人再次签到需等待的间隔时间</div></div>
+        <div class="form-group"><label>每人每日最多签到次数</label><input type="text" id="envMaxCount" placeholder="0"><div style="font-size:11px;color:#666;margin-top:4px">0表示不限制，设为1则每人每天只能签到1次</div></div>
+        <div class="sound-section">
+            <div class="sound-header"><span class="sound-label">签到提示音</span><button class="toggle-switch" id="envSoundToggle" onclick="this.classList.toggle('on')"></button></div>
+            <div class="sound-row"><label>音量</label><input type="range" id="envSoundVol" min="0" max="1" step="0.1" value="0.8"><span class="vol-val" id="envSoundVolVal">80%</span></div>
+            <div class="form-group" style="margin:0"><label>附加语音文本</label><input type="text" id="envSoundText" placeholder="例如：签到成功，辛苦了" maxlength="50"><div style="font-size:11px;color:#666;margin-top:4px">签到成功后朗读的额外内容，留空则不读</div></div>
+            <div class="sound-row"><label>读出姓名</label><button class="toggle-switch on" id="envSoundName" onclick="this.classList.toggle('on')"></button></div>
+        </div>
+        <div class="form-error" id="envError"></div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeEnvModal()">取消</button>
+            <button class="btn-primary" onclick="submitEnv()">保存</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let sessionId=null,heartbeatTimer=null,dataTimer=null;
+let allPersons=[],allRecords=[],faceTargetId=null;
+let addPhotoBlob=null,facePhotoBlob=null;
+const SVG={
+    phone:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12" y2="18.01"/></svg>',
+    chart:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+    users:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    settings:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>',
+    warn:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+    camera:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+    trash:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+    check:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+};
+function svgIcon(name,cls){return '<span class="'+(cls||'icon-svg')+'">'+(SVG[name]||'')+'</span>'}
+let cameraStream=null,faceCameraStream=null;
+let _confirmCb=null;
+const hasGetUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+// ===== 自定义确认弹窗 =====
+function showConfirm(title,msg,cb){
+    document.getElementById('confirmTitle').textContent=title;
+    document.getElementById('confirmMsg').textContent=msg;
+    document.getElementById('confirmOverlay').classList.remove('hidden');
+    _confirmCb=cb;
+}
+function confirmOk(){document.getElementById('confirmOverlay').classList.add('hidden');if(_confirmCb)_confirmCb(true);_confirmCb=null}
+function confirmCancel(){document.getElementById('confirmOverlay').classList.add('hidden');if(_confirmCb)_confirmCb(false);_confirmCb=null}
+
+// ===== 工具 =====
+function showPage(id){document.querySelectorAll('.page').forEach(p=>{p.style.display='none';p.classList.remove('active','app-active')});const pg=document.getElementById(id);pg.style.display=id==='appPage'?'block':'flex';pg.classList.add('active');if(id==='appPage')pg.classList.add('app-active')}
+function switchTab(n,btn){document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));document.getElementById('tab'+n).classList.add('active');btn.classList.add('active');if(n==='Persons'){loadPersons();stopCameraPreview()}if(n==='Settings'){loadEnvironments();stopCameraPreview()}if(n==='Overview'){refreshData();startCameraPreview()}}
+function toast(m,t){const e=document.getElementById('toast');e.textContent=m;e.className='toast show '+(t||'');setTimeout(()=>e.className='toast',2500)}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+// ===== API =====
+async function apiGet(p){const r=await fetch(p);const d=await r.json();if(!d.success)throw new Error(d.message||'请求失败');return d.data}
+async function apiPost(p,b){const r=await fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});const d=await r.json();if(!d.success)throw new Error(d.message||'请求失败');return d.data}
+async function apiPut(p,b){const r=await fetch(p,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});const d=await r.json();if(!d.success)throw new Error(d.message||'请求失败');return d.data}
+async function apiDelete(p){const r=await fetch(p,{method:'DELETE'});const d=await r.json();if(!d.success)throw new Error(d.message||'请求失败');return d.data}
+function uploadWithProgress(url,formData,onProgress){
+    return new Promise((resolve,reject)=>{
+        const xhr=new XMLHttpRequest();xhr.open('POST',url);
+        xhr.upload.onprogress=e=>{if(e.lengthComputable&&onProgress)onProgress(Math.round(e.loaded/e.total*100))};
+        xhr.onload=()=>{try{resolve(JSON.parse(xhr.responseText))}catch(e){reject(new Error('解析失败'))}};
+        xhr.onerror=()=>reject(new Error('上传失败'));
+        xhr.send(formData);
+    });
+}
+
+// ===== 拍照 / 文件选择 =====
+function buildCameraHTML(prefix, onCapture){
+    const id = prefix;
+    return '<div>'
+        + (hasGetUserMedia
+            ? '<div id="'+id+'Live"><div class="camera-view"><video id="'+id+'Video" playsinline autoplay muted></video></div>'
+              +'<div class="camera-controls"><button class="cam-btn capture" onclick="'+id+'Capture()"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button></div></div>'
+              +'<div id="'+id+'Preview" style="display:none"><div class="camera-view"><canvas id="'+id+'Canvas" class="camera-captured"></canvas></div>'
+              +'<div class="camera-controls"><button class="cam-btn" onclick="'+id+'Retake()">🔄 重拍</button></div></div>'
+            : '<div class="file-fallback" id="'+id+'Fallback">'
+              +'<button class="file-btn" onclick="document.getElementById(\''+id+'FileInput\').click()"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> 拍照或选择照片</button>'
+              +'<input type="file" id="'+id+'FileInput" accept="image/*" capture="environment" onchange="'+id+'FileSelect(this)">'
+              +'<img id="'+id+'FileImg" style="display:none">'
+              +'</div>')
+        +'</div>';
+}
+
+function setupCameraCapture(prefix, cb){
+    window[prefix+'Capture']=async()=>{
+        const v=document.getElementById(prefix+'Video'),c=document.getElementById(prefix+'Canvas');
+        c.width=v.videoWidth;c.height=v.videoHeight;
+        c.getContext('2d').drawImage(v,0,0);
+        c.toBlob(blob=>{cb(blob)},'image/jpeg',0.9);
+        if(prefix==='add'){stopStream('add');document.getElementById('addLive').style.display='none';document.getElementById('addPreview').style.display='block'}
+        else{stopStream('face');document.getElementById('faceLive').style.display='none';document.getElementById('facePreview').style.display='block'}
+    };
+    window[prefix+'Retake']=()=>{
+        cb(null);
+        if(prefix==='add'){document.getElementById('addPreview').style.display='none';document.getElementById('addLive').style.display='block';startStream(prefix,'addVideo')}
+        else{document.getElementById('facePreview').style.display='none';document.getElementById('faceLive').style.display='block';startStream(prefix,'faceVideo')}
+    };
+    window[prefix+'FileSelect']=function(input){
+        if(input.files&&input.files[0]){
+            const f=input.files[0];
+            const reader=new FileReader();
+            reader.onload=e=>{cb(e.target.result);const img=document.getElementById(prefix+'FileImg');img.src=e.target.result;img.style.display='block'};
+            reader.readAsDataURL(f);
+        }
+    };
+}
+
+async function startStream(prefix, videoId){
+    try{
+        const v=document.getElementById(videoId);
+        const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:640},height:{ideal:480}}});
+        v.srcObject=s;await v.play();
+        if(prefix==='add')cameraStream=s;else faceCameraStream=s;
+    }catch(e){console.error('Camera error:',e)}
+}
+function stopStream(prefix){
+    if(prefix==='add'&&cameraStream){cameraStream.getTracks().forEach(t=>t.stop());cameraStream=null}
+    if(prefix==='face'&&faceCameraStream){faceCameraStream.getTracks().forEach(t=>t.stop());faceCameraStream=null}
+}
+
+// ===== 连接 =====
+window.addEventListener('load',()=>initConnection());
+async function initConnection(){
+    showPage('connectPage');
+    const st=document.getElementById('connectStatus');
+    st.textContent='正在获取设备信息...';st.className='connect-status';
+    document.getElementById('retryBtn').style.display='none';
+    try{const[c,n]=await Promise.all([apiGet('/api/device/config'),apiGet('/api/device/network-info')]);document.getElementById('connectDeviceName').textContent=c.device_name||'签到设备';document.getElementById('connectNetwork').textContent='网络: '+(n.network_name||'局域网')}catch(e){document.getElementById('connectDeviceName').textContent='签到设备';document.getElementById('connectNetwork').textContent=''}
+    st.textContent='正在检查控制台状态...';
+
+    // 尝试用保存的session_id续期
+    const savedSession=localStorage.getItem('console_session_id');
+    if(savedSession){
+        try{
+            st.textContent='正在恢复会话...';
+            const r=await apiPost('/api/console/claim',{session_id:savedSession});
+            if(r.session_id){
+                sessionId=r.session_id;
+                localStorage.setItem('console_session_id',sessionId);
+                enterApp();
+                return;
+            }
+        }catch(e){localStorage.removeItem('console_session_id')}
+
+    }
+
+    // 正常流程：检查是否需要密码
+    try{const info=await apiGet('/api/console/status');if(info.occupied){showPage('occupiedPage')}else if(!info.has_password){showPage('setPasswordPage');document.getElementById('newPassword').focus()}else{showPage('loginPage');document.getElementById('loginPassword').focus()}}catch(e){st.textContent='连接失败: '+(e.message||'无法访问设备');st.className='connect-error';document.getElementById('retryBtn').style.display='block'}
+}
+
+// ===== 密码 =====
+async function submitNewPassword(){const pw=document.getElementById('newPassword').value,c=document.getElementById('confirmPassword').value,e=document.getElementById('setError');e.textContent='';if(!pw||pw.length<4){e.textContent='密码至少4位';return}if(pw!==c){e.textContent='两次密码不一致';return}try{const r=await apiPost('/api/console/claim',{password:pw});if(r.session_id){sessionId=r.session_id;localStorage.setItem('console_session_id',sessionId);enterApp()}}catch(er){e.textContent=er.message||'设置失败'}}
+async function submitLogin(){const pw=document.getElementById('loginPassword').value,e=document.getElementById('loginError');e.textContent='';if(!pw){e.textContent='请输入密码';return}try{await apiPost('/api/console/verify-password',{password:pw});const r=await apiPost('/api/console/claim',{password:pw});if(r.session_id){sessionId=r.session_id;localStorage.setItem('console_session_id',sessionId);enterApp()}}catch(er){e.textContent=er.message||'连接失败'}}
+
+// ===== 进入主界面 =====
+async function enterApp(){
+    let nn='局域网',dn='签到设备';
+    try{const[r1,r2]=await Promise.all([apiGet('/api/device/network-info'),apiGet('/api/device/config')]);if(r1.network_name)nn=r1.network_name;if(r2.device_name)dn=r2.device_name}catch(e){}
+    showPage('appPage');document.getElementById('deviceTitle').textContent=dn;document.getElementById('appNetwork').textContent=nn;document.getElementById('bottomNav').style.display='flex';
+    // 初始化拍照区域
+    document.getElementById('addCameraArea').innerHTML=buildCameraHTML('add',b=>{addPhotoBlob=b});
+    setupCameraCapture('add',b=>{addPhotoBlob=b});
+    document.getElementById('faceCameraArea').innerHTML=buildCameraHTML('face',b=>{facePhotoBlob=b});
+    setupCameraCapture('face',b=>{facePhotoBlob=b});
+    startHeartbeat();refreshData();startCameraPreview();loadPersons();loadEnvironments();loadSoundConfig();
+}
+
+// ===== 心跳 =====
+function startHeartbeat(){if(heartbeatTimer)clearInterval(heartbeatTimer);heartbeatTimer=setInterval(async()=>{try{await apiPost('/api/console/heartbeat',{session_id:sessionId})}catch(e){handleDisconnect()}},3000)}
+
+// ===== 签到语音播报（服务端 TTS，仅 PC 端播放） =====
+let soundConfig={enabled:false,volume:0.8,text:'',readName:true};
+async function loadSoundConfig(){
+    try{const r=await apiGet('/api/environments/active');if(r.environment){const e=r.environment;soundConfig={enabled:!!e.sound_enabled,volume:e.sound_volume||0.8,text:e.sound_text||'',readName:e.sound_read_name!==0}}}catch(e){}
+}
+
+// ===== 概览 =====
+function refreshData(){if(dataTimer)clearInterval(dataTimer);dataTimer=setInterval(doRefreshData,5000);doRefreshData()}
+let lastRecordIds=new Set();
+async function doRefreshData(){
+    try{
+        const s=await apiGet('/api/statistics/today');
+        const r=await apiGet('/api/attendance/today');
+        document.getElementById('todayCount').textContent=s.signed_in||0;
+        document.getElementById('personCount').textContent=s.total_persons||0;
+        allRecords=r.records||[];
+        lastRecordIds=new Set(allRecords.map(rec=>rec.id));
+        renderRecords();
+    }catch(e){console.error('刷新数据失败:',e)}
+}
+function renderRecords(){
+    const el=document.getElementById('recordsList'),bar=document.getElementById('recordBatchBar');
+    if(!allRecords.length){el.innerHTML='<div class="empty-state"><p>暂无签到记录</p></div>';bar.style.display='none';return}
+    bar.style.display='flex';
+    const today=new Date().toISOString().slice(0,10);
+    document.getElementById('exportLink').href='/api/export/attendance?start_date='+today+'&end_date='+today;
+    el.innerHTML=allRecords.map(r=>'<div class="record-item" data-id="'+r.id+'" onclick="toggleRecordSelect(this)"><div class="record-check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div class="record-info"><div class="record-name">'+esc(r.name||'未知')+'</div><div class="record-time">'+(r.sign_time||'')+'</div></div>'+(r.sign_index?'<span class="record-badge">'+r.sign_index+'</span>':'<span class="record-badge">签到</span>')+'</div>').join('');
+}
+function toggleRecordSelect(el){el.classList.toggle('selected')}
+let allRecSel=false;
+function toggleSelectAllRecords(){
+    allRecSel=!allRecSel;
+    document.querySelectorAll('#recordsList .record-item').forEach(el=>{if(allRecSel)el.classList.add('selected');else el.classList.remove('selected')});
+}
+async function deleteSelectedRecords(){
+    const ids=[...document.querySelectorAll('#recordsList .record-item.selected')].map(el=>parseInt(el.dataset.id));
+    if(!ids.length){toast('请先选择记录','error');return}
+    showConfirm('删除确认','确定删除 '+ids.length+' 条签到记录？',async ok=>{
+        if(!ok)return;
+        try{await apiPost('/api/attendance/batch-delete',{ids:ids});toast('已删除','success');refreshData()}catch(e){toast(e.message,'error')}
+    });
+}
+
+// ===== 人员管理 =====
+async function loadPersons(){const el=document.getElementById('personList');try{const d=await apiGet('/api/persons?include_inactive=1&per_page=200');allPersons=d.persons||[];renderPersons()}catch(e){el.innerHTML='<div class="empty-state"><p>加载失败</p></div>'}}
+function renderPersons(){
+    const el=document.getElementById('personList');
+    if(!allPersons.length){el.innerHTML='<div class="empty-state"><p>暂无人员，点击上方添加</p></div>';return}
+    el.innerHTML=allPersons.map(p=>{const en=p.status===1;return '<div class="person-item'+(en?'':' disabled')+'"><div class="person-info"><div class="person-name">'+esc(p.name||'未命名')+'</div>'+(p.phone?'<div class="person-phone">'+esc(p.phone)+'</div>':'')+'</div><div class="person-actions"><button class="icon-btn" onclick="event.stopPropagation();showFaceModal('+p.id+',\''+esc(p.name).replace(/'/g,"\\'")+'\')" title="注册人脸"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button><button class="icon-btn" onclick="event.stopPropagation();deletePerson('+p.id+',\''+esc(p.name).replace(/'/g,"\\'")+'\')" title="删除"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button><button class="toggle-switch'+(en?' on':'')+'" onclick="event.stopPropagation();togglePerson('+p.id+','+(en?0:1)+')"></button></div></div>'}).join('');
+}
+async function togglePerson(id,ns){try{await apiPut('/api/persons/batch-status',{ids:[id],status:ns});loadPersons();toast(ns?'已启用':'已禁用','success')}catch(e){toast(e.message,'error')}}
+async function batchEnable(en){const ids=allPersons.map(p=>p.id);if(!ids.length)return;try{await apiPut('/api/persons/batch-status',{ids,status:en?1:0});loadPersons();toast(en?'已全部启用':'已全部禁用','success')}catch(e){toast(e.message,'error')}}
+async function deletePerson(id,name){showConfirm('删除人员','确定删除「'+name+'」及其签到记录？',async ok=>{if(!ok)return;try{await apiDelete('/api/persons/'+id+'?hard=1');loadPersons();refreshData();toast('已删除','success')}catch(e){toast(e.message,'error')}})}
+
+// ===== 添加人员 =====
+async function showAddPerson(){
+    document.getElementById('addPersonModal').classList.remove('hidden');
+    document.getElementById('personName').value='';document.getElementById('personPhone').value='';
+    document.getElementById('addPersonError').textContent='';
+    document.getElementById('addUploadProgress').style.display='none';
+    document.getElementById('addUploadFill').style.width='0%';
+    document.getElementById('submitPersonBtn').disabled=false;
+    addPhotoBlob=null;
+    if(hasGetUserMedia){document.getElementById('addLive').style.display='block';document.getElementById('addPreview').style.display='none';startStream('add','addVideo')}
+}
+function closeAddPerson(){document.getElementById('addPersonModal').classList.add('hidden');stopStream('add');addPhotoBlob=null}
+async function submitAddPerson(){
+    const name=document.getElementById('personName').value.trim(),phone=document.getElementById('personPhone').value.trim(),e=document.getElementById('addPersonError');
+    e.textContent='';if(!name){e.textContent='请输入姓名';return}
+    if(!addPhotoBlob){e.textContent='请先拍摄或选择照片';return}
+    document.getElementById('submitPersonBtn').disabled=true;
+    document.getElementById('addUploadProgress').style.display='block';
+    let blob=addPhotoBlob;
+    if(typeof blob==='string'){const r=await fetch(blob);blob=await r.blob()}
+    try{
+        const result=await apiPost('/api/persons',{name:name,phone:phone});
+        const fd=new FormData();fd.append('image',blob,'capture.jpg');
+        const data=await uploadWithProgress('/api/persons/'+result.person_id+'/face',fd,pct=>{document.getElementById('addUploadFill').style.width=pct+'%'});
+        if(data.success){toast('添加成功','success');closeAddPerson();loadPersons()}else{e.textContent=data.message||'人脸注册失败';document.getElementById('submitPersonBtn').disabled=false}
+    }catch(er){e.textContent=er.message||'添加失败';document.getElementById('submitPersonBtn').disabled=false}
+}
+
+// ===== 人脸注册 =====
+function showFaceModal(id,name){
+    faceTargetId=id;document.getElementById('faceTargetName').textContent='为「'+name+'」注册人脸';
+    document.getElementById('faceModal').classList.remove('hidden');
+    document.getElementById('faceError').textContent='';
+    document.getElementById('faceUploadProgress').style.display='none';
+    document.getElementById('faceUploadFill').style.width='0%';
+    document.getElementById('submitFaceBtn').disabled=false;
+    facePhotoBlob=null;
+    if(hasGetUserMedia){document.getElementById('faceLive').style.display='block';document.getElementById('facePreview').style.display='none';startStream('face','faceVideo')}
+}
+function closeFaceModal(){document.getElementById('faceModal').classList.add('hidden');stopStream('face');facePhotoBlob=null}
+async function submitFace(){
+    if(!facePhotoBlob){document.getElementById('faceError').textContent='请先拍照或选择照片';return}
+    document.getElementById('submitFaceBtn').disabled=true;
+    document.getElementById('faceUploadProgress').style.display='block';
+    let blob=facePhotoBlob;
+    if(typeof blob==='string'){const r=await fetch(blob);blob=await r.blob()}
+    try{
+        const fd=new FormData();fd.append('image',blob,'capture.jpg');
+        const data=await uploadWithProgress('/api/persons/'+faceTargetId+'/face',fd,pct=>{document.getElementById('faceUploadFill').style.width=pct+'%'});
+        if(data.success){toast('人脸注册成功','success');closeFaceModal();loadPersons()}else{document.getElementById('faceError').textContent=data.message||'注册失败';document.getElementById('submitFaceBtn').disabled=false}
+    }catch(e){document.getElementById('faceError').textContent='上传失败';document.getElementById('submitFaceBtn').disabled=false}
+}
+
+// ===== 修改密码弹窗 =====
+function showPasswordModal(){document.getElementById('passwordModal').classList.remove('hidden');document.getElementById('pwdOld').value='';document.getElementById('pwdNew').value='';document.getElementById('pwdNew2').value='';document.getElementById('pwdError').textContent=''}
+function closePasswordModal(){document.getElementById('passwordModal').classList.add('hidden')}
+async function doChangePassword(){
+    const o=document.getElementById('pwdOld').value,n=document.getElementById('pwdNew').value,n2=document.getElementById('pwdNew2').value,e=document.getElementById('pwdError');e.textContent='';
+    if(!o||!n){e.textContent='请填写完整';return}if(n.length<4){e.textContent='新密码至少4位';return}if(n!==n2){e.textContent='两次密码不一致';return}
+    try{await apiPost('/api/console/change-password',{session_id:sessionId,old_password:o,new_password:n});toast('密码修改成功','success');closePasswordModal()}catch(er){e.textContent=er.message||'修改失败'}
+}
+
+// ===== 环境 =====
+let activeEnvId=null;
+async function loadEnvironments(){
+    const el=document.getElementById('envList');
+    try{
+        activeEnvId=null;
+        try{const r=await apiGet('/api/environments/active');activeEnvId=r.environment.id}catch(e){}
+        const d=await apiGet('/api/environments?include_inactive=1');const envs=d.environments||[];
+        if(!envs.length){el.innerHTML='<div class="empty-state"><p>暂无预设环境，点击上方新建</p></div>';return}
+        el.innerHTML=envs.map(env=>{
+            const isA=env.id===activeEnvId||env.default_env===1;
+            return '<div class="env-card'+(isA?' active':'')+'">'
+                +'<div class="env-card-header"><div><span class="env-name">'+esc(env.name)+'</span>'+(isA?'<span class="env-active-badge">当前</span>':'')+'</div></div>'
+                +(env.description?'<div class="env-desc">'+esc(env.description)+'</div>':'')
+                +'<div class="env-meta"><span>阈值 '+(env.recognition_threshold||0.55)+'</span><span>确认 '+(env.confirm_frames||3)+'帧</span><span>冷却 '+(env.sign_cooldown_seconds||60)+'s</span>'+(env.max_sign_count?('<span>限'+env.max_sign_count+'次/人/日</span>'):'')+'</div>'
+                +'<div class="env-actions">'
+                +'<button style="background:#4CAF50;color:white" onclick="switchEnv('+env.id+')">切换</button>'
+                +'<button style="background:#2a2a2a;color:#e0e0e0;border:1px solid #555" onclick="editEnv('+env.id+')">编辑</button>'
+                +(isA?'':'<button style="background:#2a2a2a;color:#e74c3c;border:1px solid #e74c3c" onclick="deleteEnv('+env.id+')">删除</button>')
+                +'</div></div>';
+        }).join('');
+    }catch(e){el.innerHTML='<div class="empty-state"><p>加载失败</p></div>'}
+}
+async function switchEnv(id){try{const r=await apiPut('/api/environments/'+id+'/activate');toast(r.message||'已切换','success');loadEnvironments();loadSoundConfig()}catch(e){toast(e.message||'切换失败','error')}}
+function showEnvModal(editId){
+    document.getElementById('envModalTitle').textContent=editId?'编辑环境':'新建环境';
+    document.getElementById('envError').textContent='';document.getElementById('envEditId').value=editId||'';
+    if(editId){
+        // 加载环境数据
+        apiGet('/api/environments/'+editId).then(res=>{
+            const env=res.environment;
+            document.getElementById('envName').value=env.name||'';
+            document.getElementById('envDesc').value=env.description||'';
+            document.getElementById('envThreshold').value=env.recognition_threshold||'0.55';
+            document.getElementById('envFrames').value=env.confirm_frames||'3';
+            document.getElementById('envCooldown').value=env.sign_cooldown_seconds||'60';
+            document.getElementById('envMaxCount').value=env.max_sign_count||'0';
+            document.getElementById('envSoundVol').value=env.sound_volume||0.8;
+            document.getElementById('envSoundVolVal').textContent=Math.round((env.sound_volume||0.8)*100)+'%';
+            document.getElementById('envSoundText').value=env.sound_text||'';
+            const st=document.getElementById('envSoundToggle');if(env.sound_enabled)st.classList.add('on');else st.classList.remove('on');
+            const sn=document.getElementById('envSoundName');if(env.sound_read_name)sn.classList.add('on');else sn.classList.remove('on');
+        }).catch(e=>{document.getElementById('envError').textContent='加载失败'});
+    }else{
+        document.getElementById('envName').value='';document.getElementById('envDesc').value='';
+        document.getElementById('envThreshold').value='0.55';document.getElementById('envFrames').value='3';
+        document.getElementById('envCooldown').value='60';document.getElementById('envMaxCount').value='0';
+        document.getElementById('envSoundVol').value=0.8;document.getElementById('envSoundVolVal').textContent='80%';
+        document.getElementById('envSoundText').value='';
+        document.getElementById('envSoundToggle').classList.remove('on');
+        document.getElementById('envSoundName').classList.add('on');
+    }
+    document.getElementById('envModal').classList.remove('hidden');
+}
+function editEnv(id){showEnvModal(id)}
+function closeEnvModal(){document.getElementById('envModal').classList.add('hidden')}
+document.getElementById('envSoundVol').addEventListener('input',function(){document.getElementById('envSoundVolVal').textContent=Math.round(this.value*100)+'%'});
+async function submitEnv(){
+    const name=document.getElementById('envName').value.trim(),e=document.getElementById('envError');e.textContent='';
+    if(!name){e.textContent='请输入环境名称';return}
+    const desc=document.getElementById('envDesc').value.trim();
+    const threshold=parseFloat(document.getElementById('envThreshold').value)||0.55;
+    const frames=parseInt(document.getElementById('envFrames').value)||3;
+    const cooldown=parseInt(document.getElementById('envCooldown').value)||60;
+    const maxCount=parseInt(document.getElementById('envMaxCount').value)||0;
+    const soundEnabled=document.getElementById('envSoundToggle').classList.contains('on')?1:0;
+    const soundVol=parseFloat(document.getElementById('envSoundVol').value)||0.8;
+    const soundText=document.getElementById('envSoundText').value.trim();
+    const soundReadName=document.getElementById('envSoundName').classList.contains('on')?1:0;
+    const editId=document.getElementById('envEditId').value;
+    try{
+        const data={name:name,description:desc,recognition_threshold:threshold,confirm_frames:frames,sign_cooldown_seconds:cooldown,max_sign_count:maxCount,sound_enabled:soundEnabled,sound_volume:soundVol,sound_text:soundText,sound_read_name:soundReadName};
+        if(editId){
+            await apiPut('/api/environments/'+editId,data);
+        }else{
+            await apiPost('/api/environments',data);
+        }
+        toast(editId?'环境已更新':'环境已创建','success');closeEnvModal();loadEnvironments();
+    }catch(er){e.textContent=er.message||'保存失败'}
+}
+async function deleteEnv(id){
+    showConfirm('删除环境','确定删除该环境？当前使用的环境不允许删除。',async ok=>{
+        if(!ok)return;
+        try{await apiDelete('/api/environments/'+id);toast('已删除','success');loadEnvironments()}catch(e){toast(e.message||'删除失败','error')}
+    });
+}
+
+// ===== 摄像头预览 =====
+let cameraPreviewTimer=null;
+let cameraIsRunning=false;
+function startCameraPreview(){
+    if(cameraPreviewTimer)return;
+    updatePreviewImage();
+    cameraPreviewTimer=setInterval(updatePreviewImage,1000);
+}
+function stopCameraPreview(){
+    if(cameraPreviewTimer){clearInterval(cameraPreviewTimer);cameraPreviewTimer=null}
+    const img=document.getElementById('previewImg');
+    if(img)img.src='';
+    updateCameraUI(false);
+}
+function updateCameraUI(running){
+    cameraIsRunning=running;
+    const status=document.getElementById('camStatus');
+    const btn=document.getElementById('cameraToggleBtn');
+    if(running){
+        status.textContent='在线';status.className='cam-status on';
+        btn.textContent='关闭摄像头';btn.className='camera-toggle-btn on';
+    }else{
+        status.textContent='离线';status.className='cam-status off';
+        btn.textContent='开启摄像头';btn.className='camera-toggle-btn off';
+    }
+}
+async function updatePreviewImage(){
+    try{
+        const d=await apiGet('/api/monitor/snapshot?t='+Date.now());
+        if(d.image){
+            document.getElementById('previewImg').src=d.image;
+            updateCameraUI(true);
+        }else{
+            document.getElementById('previewImg').src='';
+            updateCameraUI(false);
+        }
+    }catch(e){
+        document.getElementById('previewImg').src='';
+        updateCameraUI(false);
+    }
+}
+async function toggleCamera(){
+    try{
+        await apiPost('/api/camera/toggle',{});
+        // 实际状态由下次轮询更新，短暂延迟后手动刷新一次
+        setTimeout(updatePreviewImage,500);
+        setTimeout(updatePreviewImage,1500);
+        setTimeout(updatePreviewImage,3000);
+    }catch(e){toast(e.message||'操作失败','error')}
+}
+
+// ===== 断线 =====
+async function handleDisconnect(){
+    if(heartbeatTimer)clearInterval(heartbeatTimer);if(dataTimer)clearInterval(dataTimer);heartbeatTimer=null;dataTimer=null;
+    stopCameraPreview();
+    if(sessionId)try{await apiPost('/api/console/release',{session_id:sessionId})}catch(e){}
+    sessionId=null;localStorage.removeItem('console_session_id');
+    document.getElementById('bottomNav').style.display='none';
+    document.getElementById('disconnectModal').classList.remove('hidden');
+}
+function returnToConnect(){document.getElementById('disconnectModal').classList.add('hidden');initConnection()}
+function disconnectDevice(){showConfirm('断开连接','确定断开与设备的连接？',async ok=>{if(!ok)return;handleDisconnect()})}
+
+// ===== 键盘 =====
+document.addEventListener('keydown',e=>{if(e.key==='Enter'){if(document.getElementById('setPasswordPage').classList.contains('active'))submitNewPassword();else if(document.getElementById('loginPage').classList.contains('active'))submitLogin()}});
+
+// ===== 卸载 =====
+window.addEventListener('beforeunload',()=>{
+    if(heartbeatTimer)clearInterval(heartbeatTimer);if(dataTimer)clearInterval(dataTimer);
+    stopCameraPreview();
+    stopStream('add');stopStream('face');
+    if(sessionId)navigator.sendBeacon&&navigator.sendBeacon('/api/console/release',JSON.stringify({session_id:sessionId}));
+});
+</script>
+</body>
+</html>

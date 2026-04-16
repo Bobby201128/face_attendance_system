@@ -98,6 +98,35 @@ class Database:
                 )
             """)
 
+            # 环境配置表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS environments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    description TEXT DEFAULT '',
+                    work_start_hour INTEGER DEFAULT 9,
+                    work_start_minute INTEGER DEFAULT 0,
+                    work_end_hour INTEGER DEFAULT 18,
+                    work_end_minute INTEGER DEFAULT 0,
+                    late_grace_minutes INTEGER DEFAULT 15,
+                    recognition_threshold REAL DEFAULT 0.55,
+                    confirm_frames INTEGER DEFAULT 3,
+                    sign_cooldown_seconds INTEGER DEFAULT 60,
+                    max_sign_count INTEGER DEFAULT 0,
+                    sound_enabled INTEGER DEFAULT 0,
+                    sound_volume REAL DEFAULT 0.8,
+                    sound_text TEXT DEFAULT '',
+                    sound_read_name INTEGER DEFAULT 1,
+                    sign_in_required INTEGER DEFAULT 1,
+                    sign_out_required INTEGER DEFAULT 1,
+                    sign_mode TEXT DEFAULT 'auto',
+                    is_active INTEGER DEFAULT 1,
+                    default_env INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
             # 创建索引
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_attendance_person ON attendance(person_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_attendance_time ON attendance(sign_time)")
@@ -107,6 +136,36 @@ class Database:
 
             # 初始化默认配置
             self._init_default_settings(cursor)
+
+            # 初始化默认环境（如果没有）
+            cursor.execute("SELECT COUNT(*) as cnt FROM environments")
+            if cursor.fetchone()['cnt'] == 0:
+                cursor.execute("""
+                    INSERT INTO environments (name, description, default_env, is_active)
+                    VALUES ('默认环境', '默认签到环境', 1, 1)
+                """)
+
+            # 确保环境表有 max_sign_count 列
+            try:
+                cursor.execute("ALTER TABLE environments ADD COLUMN max_sign_count INTEGER DEFAULT 0")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE environments ADD COLUMN sound_enabled INTEGER DEFAULT 0")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE environments ADD COLUMN sound_volume REAL DEFAULT 0.8")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE environments ADD COLUMN sound_text TEXT DEFAULT ''")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE environments ADD COLUMN sound_read_name INTEGER DEFAULT 1")
+            except Exception:
+                pass
 
     def _init_default_settings(self, cursor):
         """初始化默认系统配置"""
@@ -130,25 +189,19 @@ class Database:
 
     # ==================== 人员管理 ====================
 
-    def add_person(self, name, employee_id=None, department="", position="",
-                   phone="", email="", face_encoding=None, face_image_path="",
-                   remark=""):
-        """添加人员"""
+    def add_person(self, name, phone="", face_encoding=None, face_image_path="", remark=""):
+        """添加人员 - 简化版：只保留姓名和手机号（备注）"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO persons (name, employee_id, department, position,
-                                    phone, email, face_encoding, face_image_path, remark)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (name, employee_id, department, position, phone, email,
-                  face_encoding, face_image_path, remark))
+                INSERT INTO persons (name, phone, face_encoding, face_image_path, remark)
+                VALUES (?, ?, ?, ?, ?)
+            """, (name, phone, face_encoding, face_image_path, remark))
             return cursor.lastrowid
 
     def update_person(self, person_id, **kwargs):
-        """更新人员信息"""
-        allowed_fields = ['name', 'employee_id', 'department', 'position',
-                         'phone', 'email', 'face_encoding', 'face_image_path',
-                         'status', 'remark']
+        """更新人员信息 - 简化版"""
+        allowed_fields = ['name', 'phone', 'face_encoding', 'face_image_path', 'remark']
         updates = []
         values = []
         for field, value in kwargs.items():
@@ -385,16 +438,19 @@ class Database:
 
             # 迟到人数
             settings = self.get_settings()
-            work_start = settings.get('work_start', '09:00')
-            late_grace = int(settings.get('late_grace', '15'))
+            work_start = settings.get('work_start', '09:00') or '09:00'
+            late_grace = int(settings.get('late_grace', '15') or 15)
 
-            cursor.execute("""
-                SELECT COUNT(DISTINCT person_id) as cnt
-                FROM attendance
-                WHERE date(sign_time) = ? AND sign_type = 'in'
-                  AND time(sign_time) > time(?)
-            """, (today, f"{work_start}:{late_grace:02d}:00"))
-            late_count = cursor.fetchone()['cnt']
+            try:
+                cursor.execute("""
+                    SELECT COUNT(DISTINCT person_id) as cnt
+                    FROM attendance
+                    WHERE date(sign_time) = ? AND sign_type = 'in'
+                      AND time(sign_time) > time(?)
+                """, (today, f"{work_start}:{late_grace:02d}:00"))
+                late_count = cursor.fetchone()['cnt']
+            except Exception:
+                late_count = 0
 
             return {
                 "total_persons": total_persons,
@@ -514,6 +570,16 @@ class Database:
                     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
                 """, (key, str(value)))
 
+    def batch_update_person_status(self, ids, status):
+        """批量更新人员启用/禁用状态"""
+        if not ids:
+            return
+        with self.get_connection() as conn:
+            conn.execute(
+                f"UPDATE persons SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN ({','.join('?' * len(ids))})",
+                [status] + list(ids)
+            )
+
     # ==================== 操作日志 ====================
 
     def add_log(self, action, detail="", operator="system", ip_address=""):
@@ -586,7 +652,8 @@ class Database:
                          'work_end_hour', 'work_end_minute', 'late_grace_minutes',
                          'sign_in_required', 'sign_out_required', 'sign_mode',
                          'recognition_threshold', 'confirm_frames', 'sign_cooldown_seconds',
-                         'is_active', 'default_env']
+                         'is_active', 'default_env', 'max_sign_count',
+                         'sound_enabled', 'sound_volume', 'sound_text', 'sound_read_name']
         updates = []
         values = []
 
@@ -1051,6 +1118,35 @@ class Database:
             return False, "缺少pandas或openpyxl库"
         except Exception as e:
             return False, f"导出失败: {str(e)}"
+
+    # ==================== 设备配置相关 ====================
+
+    def get_device_config(self):
+        """获取设备配置"""
+        return {
+            'device_name': self.get_setting('device_name', ''),
+            'device_id': self.get_setting('device_id', ''),
+            'location': self.get_setting('location', ''),
+            'description': self.get_setting('device_description', '')
+        }
+
+    def update_device_config(self, device_name=None, location=None, description=None):
+        """更新设备配置"""
+        if device_name:
+            self.update_setting('device_name', device_name)
+        if location:
+            self.update_setting('location', location)
+        if description:
+            self.update_setting('device_description', description)
+
+    def ensure_device_id(self):
+        """确保设备ID存在"""
+        device_id = self.get_setting('device_id')
+        if not device_id:
+            from device_discovery import DeviceDiscovery
+            device_id = DeviceDiscovery.get_device_id()
+            self.update_setting('device_id', device_id)
+        return device_id
 
 
 # 全局数据库实例

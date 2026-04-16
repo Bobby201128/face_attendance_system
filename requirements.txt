@@ -11,3 +11,4 @@ openpyxl>=3.1.0
 pandas>=2.0.0
 qrcode>=7.4.0
 pyzbar>=0.1.9
+playsound3>=1.0.0

@@ -499,28 +499,18 @@
 </div>
 
 <!-- ===== Login Page ===== -->
-<div class="login-page" id="loginPage">
+<div class="login-page" id="loginPage" style="display: none;">
     <div class="login-card">
         <div class="login-logo">
             <div class="icon">&#x1F5A5;</div>
             <h1>人脸识别签到系统</h1>
             <p>移动端管理平台</p>
         </div>
-        <div class="form-group">
-            <label>管理密码</label>
-            <input type="password" id="loginPassword" placeholder="请输入管理密码" onkeydown="if(event.key==='Enter')doLogin()">
-        </div>
-        <button class="btn btn-primary" onclick="doLogin()">登 录</button>
-        <div class="login-error" id="loginError"></div>
-        <div class="form-group server-input">
-            <label>服务器地址</label>
-            <input type="text" id="serverAddr" placeholder="http://192.168.1.100:5000">
-        </div>
     </div>
 </div>
 
 <!-- ===== Main App ===== -->
-<div class="app" id="mainApp">
+<div class="app" id="mainApp" style="display: block;">
     <!-- Header -->
     <div class="header">
         <div class="header-top">
@@ -936,7 +926,7 @@
     </div>
 </div>
 
-<script>
+</script>
 <div class="modal-overlay" id="personModal">
     <div class="modal">
         <div class="modal-header">
@@ -949,28 +939,8 @@
             <input type="text" id="personName" placeholder="请输入姓名">
         </div>
         <div class="form-group">
-            <label>工号</label>
-            <input type="text" id="personEmpId" placeholder="请输入工号">
-        </div>
-        <div class="form-group">
-            <label>部门</label>
-            <input type="text" id="personDept" placeholder="请输入部门">
-        </div>
-        <div class="form-group">
-            <label>职位</label>
-            <input type="text" id="personPosition" placeholder="请输入职位">
-        </div>
-        <div class="form-group">
-            <label>电话</label>
-            <input type="tel" id="personPhone" placeholder="请输入电话">
-        </div>
-        <div class="form-group">
-            <label>邮箱</label>
-            <input type="email" id="personEmail" placeholder="请输入邮箱">
-        </div>
-        <div class="form-group">
-            <label>备注</label>
-            <textarea id="personRemark" placeholder="备注信息"></textarea>
+            <label>手机号</label>
+            <input type="tel" id="personPhone" placeholder="请输入手机号（可选）">
         </div>
         <button class="btn btn-primary" onclick="savePerson()">保存</button>
     </div>
@@ -1093,66 +1063,34 @@ function closeConfirm() {
 }
 
 // ==================== Auth ====================
+// 无需登录，直接进入系统
 function doLogin() {
-    const password = document.getElementById('loginPassword').value;
-    const server = document.getElementById('serverAddr').value.trim();
-
-    if (!password) { showToast('请输入密码'); return; }
-
-    API_BASE = server || window.location.origin;
-    TOKEN = '';
-
-    fetch(API_BASE + '/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.code === 200) {
-            TOKEN = data.data.token;
-            localStorage.setItem('token', TOKEN);
-            localStorage.setItem('server', API_BASE);
-            document.getElementById('loginPage').style.display = 'none';
-            document.getElementById('mainApp').style.display = 'block';
-            if (data.data.system_name) {
-                document.getElementById('headerTitle').textContent = data.data.system_name;
-            }
-            initApp();
-        } else {
-            document.getElementById('loginError').textContent = data.message;
-            document.getElementById('loginError').style.display = 'block';
-        }
-    })
-    .catch(e => {
-        showToast('连接失败: ' + e.message);
-    });
+    // 直接显示主应用
+    document.getElementById("loginPage").style.display = "none";
+    document.getElementById("mainApp").style.display = "block";
+    API_BASE = window.location.origin;
+    initApp();
+    return true;
 }
 
 function doLogout() {
-    TOKEN = '';
-    localStorage.removeItem('token');
-    document.getElementById('loginPage').style.display = 'flex';
-    document.getElementById('mainApp').style.display = 'none';
-    if (monitorTimer) clearInterval(monitorTimer);
+    // 刷新页面
+    location.reload();
 }
 
-// Auto login
+// 初始化应用（自动执行）
 (function() {
-    const saved = localStorage.getItem('token');
-    const server = localStorage.getItem('server');
-    if (saved) {
-        TOKEN = saved;
-        API_BASE = server || window.location.origin;
-        document.getElementById('serverAddr').value = API_BASE;
-        document.getElementById('loginPage').style.display = 'none';
-        document.getElementById('mainApp').style.display = 'block';
-        initApp();
-    } else {
-        // Try current origin
-        document.getElementById('serverAddr').value = window.location.origin;
-    }
+    // 设置API基础URL
+    API_BASE = window.location.origin;
+
+    // 直接显示主应用，跳过登录
+    document.getElementById("loginPage").style.display = "none";
+    document.getElementById("mainApp").style.display = "block";
+
+    // 初始化应用
+    initApp();
 })();
+
 
 // ==================== Navigation ====================
 function switchPage(name) {
@@ -1939,7 +1877,8 @@ function addSettingsEntries() {
 
 // 页面加载时执行
 document.addEventListener('DOMContentLoaded', function() {
-    // 添加新功能入口到设置页面
+    // 注意：应用已在页面加载时自动初始化
+
     setTimeout(addSettingsEntries, 500);
 
     // 添加页面切换支持
